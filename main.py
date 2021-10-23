@@ -1,6 +1,5 @@
 import json
 import argparse
-import random as rand
 from numpy import random
 from math import exp, tanh
 
@@ -8,16 +7,19 @@ from utils import read_csv_file
 
 class Network:
     def __init__(self):
-        self.layers_count = 1
+        self.layers_count = 0
         self.layers = []
 
     def add_first_hidden(self, neurons_count, inputs_count, bias = 0, weights_mat = None):
         self.layers.append(Layer(neurons_count, bias, weights_mat, inputs_count))
         self.layers_count += 1
+        self.num_inputs = inputs_count
+        self.output_layer = self.layers[self.layers_count - 1]
 
     def add(self, neurons_count, bias = 0, weights_mat = None):
         self.layers.append(Layer(neurons_count, bias, weights_mat, self.layers[self.layers_count - 1].neurons_count))
         self.layers_count += 1
+        self.output_layer = self.layers[self.layers_count - 1]
 
     def print_myself(self):
         print('------')
@@ -35,7 +37,9 @@ class Network:
         self.outputs = inputs
         for layer in self.layers:
             self.outputs = layer.inference(inputs)
-        return self.output_layer.inference(self.outputs)
+        result = self.output_layer.inference(self.outputs)
+        print('f({})={}'.format(inputs, result))
+        return result
     
     def train():
         pass
@@ -55,7 +59,7 @@ class Network:
 class Layer:
     def __init__(self, neurons_count, bias, weights_mat, previous_layer_neurons_count = 0):
         self.neurons_count = neurons_count
-        self.bias = bias if bias else rand.random()
+        self.bias = bias if bias else random.rand()
         if weights_mat is None:
             weights_mat = random.rand(neurons_count, previous_layer_neurons_count)
         self.neurons = [ Neuron(neuron_weights, self.bias) for neuron_weights in weights_mat ]
@@ -69,11 +73,12 @@ class Layer:
             print('  Bias:  ', self.bias)
 
     def inference(self, inputs):
+        self.inputs = inputs
         return [neuron.axon_output(inputs) for neuron in self.neurons]
 
 
 class Neuron:
-    def __init__(self, weights, activation_function = 'sigmoid', bias = 0):
+    def __init__(self, weights, bias = 0, activation_function = 'sigmoid'):
         self.weights = weights
         self.activation_function = activation_function
         self.bias = bias
@@ -89,12 +94,13 @@ class Neuron:
         else:
             print("No such activation_function:", self.activation_function)
             exit()
+        return self.output
     
-    def sigmoid(sum_of_inputs):
+    def sigmoid(self, sum_of_inputs):
         return 1 / (1 + exp(-sum_of_inputs))
-    def relu(sum_of_inputs):
+    def relu(self, sum_of_inputs):
         return 0 if sum_of_inputs < 0 else sum_of_inputs
-    def tangensH(sum_of_input):
+    def tangensH(self, sum_of_input):
         return tanh(sum_of_input)
 
     def synaps_inputs_sum(self):
@@ -105,7 +111,7 @@ class Neuron:
     
     # ∂E/∂zⱼ -->  the partial derivative of the neuron error with respect to the neuron input
     # δ = ∂E/∂zⱼ = ∂E/∂yⱼ * dyⱼ/dzⱼ
-    def DsynapsError_DsynapsInputsSum():
+    def DsynapsError_DsynapsInputsSum(self):
         pass
 
     # The partial derivative of the neuron error with respect to actual neuron output:
@@ -139,7 +145,7 @@ def main():
                         help='name of file')
 
     parser.add_argument('-n', '--number', dest='number', type=str, choices=('100', '500', '1000', "10000"),
-                        default = "100", help='count of samples')
+                        default = "10000", help='count of samples')
 
     args = vars(parser.parse_args())
 
@@ -163,7 +169,7 @@ def main():
 
     network_params.keys()
     try:
-        print(network_params["layers"][0]["weights"][0][1])
+        print("weight =", network_params["layers"][0]["weights"][0][1])
     except:
         print("No such name in json file")
         
@@ -177,6 +183,9 @@ def main():
     #Load test file
     test_file = read_csv_file(args["type"], args["file"], 'test', args["number"])
 
+    # print("Dim: {}\tHead:".format(train_file.shape))
+    # print(train_file.head())
+
     X_train = train_file.x
     y_train = train_file.y
 
@@ -186,6 +195,13 @@ def main():
     if args["type"] == "classification":
         train_cls = train_file.cls
         test_cls = test_file.cls
+
+    net = Network()
+    net.add_first_hidden(2, 1)
+    net.add(2)
+    net.print_myself()
+    net.inference([1.])
+
 
     
 
