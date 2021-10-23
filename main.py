@@ -1,7 +1,10 @@
 import json
+import argparse
 import random as rand
 from numpy import random
 from math import exp, tanh
+
+from utils import read_csv_file
 
 class Network:
     def __init__(self):
@@ -33,7 +36,7 @@ class Network:
         for layer in self.layers:
             self.outputs = layer.inference(inputs)
         return self.output_layer.inference(self.outputs)
-
+    
     def train():
         pass
 
@@ -46,7 +49,8 @@ class Network:
                 error += self.layers[-1].neurons[o].calculate_error(training_outputs[o])
         return error
 
-    
+
+
 
 class Layer:
     def __init__(self, neurons_count, bias, weights_mat, previous_layer_neurons_count = 0):
@@ -66,6 +70,7 @@ class Layer:
 
     def inference(self, inputs):
         return [neuron.axon_output(inputs) for neuron in self.neurons]
+
 
 class Neuron:
     def __init__(self, weights, activation_function = 'sigmoid', bias = 0):
@@ -121,6 +126,32 @@ class Neuron:
 
 
 def main():
+
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument('-s', '--seed', dest='seed', type=int,
+                        default=123, help='type of algorithm')
+
+    parser.add_argument('-t', '--type', dest='type', choices=('classification', 'regression'),
+                        default='classification', help='type of algorithm')
+
+    parser.add_argument('-f', '--file', dest='file', type=str, default="simple",
+                        help='name of file')
+
+    parser.add_argument('-n', '--number', dest='number', type=str, choices=('100', '500', '1000', "10000"),
+                        default = "100", help='count of samples')
+
+    args = vars(parser.parse_args())
+
+    print('Configuration')
+    print('seed: {}'.format(args['seed']))
+    print('algoritm type: {}'.format(args['type']))
+    print('filename: {}'.format(args['file']))
+    print('number of samples: {}'.format(args['number']))
+
+    #Set seed
+    random.seed(args['seed'])
+
     try:
         with open('network_params.json') as f:
             network_params = json.load(f)
@@ -137,6 +168,33 @@ def main():
         print("No such name in json file")
         
     print(network_params.keys())
+
+    print("Loading train and test files")
+
+    #Load train file
+    train_file = read_csv_file(args["type"], args["file"], 'train', args["number"])
+
+    #Load test file
+    test_file = read_csv_file(args["type"], args["file"], 'test', args["number"])
+
+    X_train = train_file.x
+    y_train = train_file.y
+
+    X_test = test_file.x
+    y_test = test_file.y
+
+    if args["type"] == "classification":
+        train_cls = train_file.cls
+        test_cls = test_file.cls
+
+    
+
+
+
+
+
+
+    
 
 if __name__ == "__main__":
     main()
