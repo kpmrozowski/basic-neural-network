@@ -1,25 +1,32 @@
 import json
 import argparse
-from numpy import random
-from math import exp, tanh
+from posix import XATTR_SIZE_MAX
+import numpy as np
 
-from utils import read_csv_file
+from utils import read_csv_file, comp_confmat
 
 class Network:
-    def __init__(self, training_inputs=None, training_outputs=None):
+    def __init__(self, training_inputs=None, training_outputs=None, activation_function='sigmoid', problem='Classification'):
         self.layers_count = 0
         self.layers = []
-        self.training_inputs = training_inputs
-        self.training_outputs = training_outputs
+        self.problem = problem
+        self.X_raw = training_inputs
+        self.Y_raw = training_outputs
+        self.X_train = np.array([])
+        self.Y_train = np.array([])
+        self.X_verif = np.array([])
+        self.Y_verif = np.array([])
+        self.activation_function = activation_function
 
-    def add_first_hidden(self, neurons_count, inputs_count, bias = 0, weights_mat = None):
-        self.layers.append(Layer(neurons_count, bias, weights_mat, inputs_count))
+    def add_first_hidden(self, neurons_count, inputs_count, biases = None, weights_mat = None):
+        self.layers.append(Layer(neurons_count, biases, weights_mat, inputs_count, self.activation_function))
         self.layers_count += 1
         self.num_inputs = inputs_count
         self.output_layer = self.layers[self.layers_count - 1]
 
-    def add(self, neurons_count, bias = 0, weights_mat = None):
-        self.layers.append(Layer(neurons_count, bias, weights_mat, self.layers[self.layers_count - 1].neurons_count))
+    def add(self, neurons_count, biases = None, weights_mat = None):
+        self.layers.append(Layer(neurons_count, biases, weights_mat, \
+                           self.layers[self.layers_count - 1].neurons_count, self.activation_function))
         self.layers_count += 1
         self.output_layer = self.layers[self.layers_count - 1]
 
@@ -40,11 +47,78 @@ class Network:
         for layer in self.layers:
             self.outputs = layer.inference(inputs)
         result = self.output_layer.inference(self.outputs)
-        print('f({})={}'.format(inputs, result))
+        # print('f({})={}'.format(inputs, result))
         return result
+
+    def feed_forward(self, X):
+        self.layers[0].compute_outputs(X)
+        for i in range(1, len(self.layers)):
+            self.layers[i].compute_outputs(self.layers[i-1].axons_outputs)
+
+    def back_propagate(self, X, Y, m_batch):
+        dZ = self.layers[-1].axons_outputs - Y
+        self.layers[-1].dW = (1./m_batch) * np.matmul(dZ, self.layers[-2].axons_outputs.T)
+        self.layers[-1].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
+        # print(dZ.shape)
+        for i in range(len(self.layers)-2, -1, -1):
+            dA = np.matmul(self.layers[i+1].weights.T, dZ)
+            A = self.layers[i].axons_outputs
+            dZ = dA * A * (1 - A)
+            self.layers[i].dW = (1./m_batch) * np.matmul(dZ, self.layers[i-1].axons_outputs.T)
+            self.layers[i].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
+            # print("shapes_57:", "W[1]", self.layers[i+1].weights.shape, "dA[0]", dA.shape, "A[0]", A.shape, "A[-1]", self.layers[i-1].axons_outputs.shape, "dW[0]", self.layers[i].dW.shape, "db", self.layers[i].db.shape)
     
-    def train():
-        pass
+    def train(self, batch_size, train_verif_ratio, learning_rate, relaxation):
+        m = int((self.X_raw.shape[0] * train_verif_ratio))
+        if self.problem == 'Classification':
+            min_cls = np.min(self.Y_raw)
+            max_cls = np.max(self.Y_raw)
+            classes_count = max_cls - min_cls + 1
+            Y = np.eye(classes_count)[self.Y_raw - min_cls]
+        self.X_train, self.X_verif = self.X_raw[:m].T, self.X_raw[m:].T
+        self.Y_train, self.Y_verif = Y[:m].T, Y[m:].T
+        batches = -(-m // batch_size)
+        epoch = 0
+        iterations_left = 5
+        while True:
+            permutation = np.random.permutation(self.X_train.shape[1])
+            X_train_shuffled = self.X_train[:, permutation]
+            Y_train_shuffled = self.Y_train[:, permutation]
+            for i in range(batches):
+                begin = i * batch_size
+                end = min(begin + batch_size, self.X_train.shape[1] - 1)
+                X = X_train_shuffled[:, begin:end]
+                Y = Y_train_shuffled[:, begin:end]
+                m_batch = end - begin
+                self.feed_forward(X)
+                self.back_propagate(X, Y, m_batch)
+
+                for layer in self.layers:
+                    layer.V_dW = (1. - relaxation) * layer.V_dW + relaxation * layer.dW
+                    layer.V_db = (1. - relaxation) * layer.V_db + relaxation * layer.db
+                    layer.weights -= learning_rate * layer.V_dW
+                    layer.biases -= learning_rate * layer.V_db
+
+            self.feed_forward(self.X_train)
+            train_cost = self.cross_entropy_loss()
+            self.feed_forward(self.X_verif)
+            verif_cost = self.cross_entropy_loss(self.Y_verif)
+            print("Epoch {}: training cost = {}, verif cost = {}".format(epoch+1 ,train_cost, verif_cost))
+            if iterations_left == 0:
+                predictions = np.argmax(self.layers[-1].axons_outputs.T, axis=1)
+                labels = np.argmax(self.Y_verif, axis=0)
+                # print(classification_report(predictions, labels))
+                # print(confusion_matrix(predictions, labels))
+                print(comp_confmat(predictions, labels))
+                iterations_left += int(input("How many epochs do you want more? Epochs: "))
+                if iterations_left == 0:
+                    break
+                learning_rate = float(input("What learinig_rate do you want? learning_rate="))
+                relaxation = float(input("What relaxation parameter do you want? relaxation="))
+            iterations_left -= 1
+            epoch += 1
+
+        print("traininig done!")
 
     def error(self, training_sets, output_sets):
         error = 0
@@ -56,26 +130,55 @@ class Network:
                 error += self.layers[-1].neurons[o].error(training_outputs[o])
         return error
 
+    # L(Ŷ,Y)= −(1/m) * ∑_{i=0}^{m}{ ŷᵢ * log(yᵢ) + (1−ŷᵢ) * log(1−yᵢ) }.
     def total_error(self):
         error = 0
-        for i in range(len(self.training_inputs)):
-            training_in = self.training_inputs[i]
-            training_out = self.training_outputs[i]
-            self.inference(training_in)
-            for o in range(len(training_out)):
-                error += self.layers[-1].neurons[o].error(training_out[o])
+        for i in range(self.X_train.shape[0]):
+            x = self.X_train[i]
+            y = self.Y_train[i]
+            self.inference(x)
+            for o in range(len(y)):
+                error += self.layers[-1].neurons[o].error(y[o])
         return error
+
+    # L(Ŷ,Y)= −(1/m) * ∑_{i=0}^{m}{ ŷᵢ * log(yᵢ) + (1−ŷᵢ) * log(1−yᵢ) }.
+    def cross_entropy_loss(self, Y_verif=None):
+        if Y_verif is None:
+            Y_hat = self.Y_train
+            self.feed_forward(self.X_train)
+            Y = self.layers[-1].axons_outputs
+            # y = np.array([self.inference(x) for x in self.X_train])
+        else:
+            Y_hat = self.Y_verif
+            self.feed_forward(self.X_verif)
+            Y = self.layers[-1].axons_outputs
+            # y = np.array([self.inference(x) for x in self.X_verif])
+        m = self.Y_train.shape[0]
+        a = np.multiply( np.log(Y), Y_hat)
+        b = np.multiply( np.log(1-Y), 1-Y_hat)
+        sum_a = np.sum( a )
+        sum_b = np.sum( b )
+        result =  -(1./m) * ( sum_a + sum_b )
+        return result
 
 
 
 
 class Layer:
-    def __init__(self, neurons_count, bias, weights_mat, previous_layer_neurons_count = 0):
+    def __init__(self, neurons_count, biases, weights_mat, previous_layer_neurons_count = 0, activation_function = 'sigmoid'):
         self.neurons_count = neurons_count
-        self.bias = bias if bias else random.rand()
+        self.biases = biases if biases!=None else np.random.rand(neurons_count, 1)
         if weights_mat is None:
-            weights_mat = random.rand(neurons_count, previous_layer_neurons_count)
-        self.neurons = [ Neuron(neuron_weights, self.bias) for neuron_weights in weights_mat ]
+            weights_mat = np.random.rand(neurons_count, previous_layer_neurons_count)
+        self.weights = weights_mat
+        self.neurons = [ Neuron(weights_mat[i], self.biases[i]) for i in range(neurons_count) ]
+        self.activation_function = activation_function
+        self.synaps_inputs_sums = np.zeros([neurons_count, 1])
+        self.axons_outputs = np.zeros([neurons_count, 1])
+        self.dW = np.zeros([neurons_count, previous_layer_neurons_count])
+        self.db = np.zeros([neurons_count, 1])
+        self.V_dW = np.zeros([neurons_count, previous_layer_neurons_count])
+        self.V_db = np.zeros([neurons_count, 1])
 
     def print_myself(self):
         print('Neurons:', len(self.neurons))
@@ -83,20 +186,44 @@ class Layer:
             print(' Neuron', n)
             for w in range(len(self.neurons[n].weights)):
                 print('  Weight:', self.neurons[n].weights[w])
-            print('  Bias:  ', self.bias)
+                print('  Bias:  ', self.biases[w])
 
     def inference(self, inputs):
         self.inputs = inputs
-        return [neuron.axon_output(inputs) for neuron in self.neurons]
+        # yⱼ = σ(wⱼ.T * xⱼ + bⱼ)
+        self.axons_outputs = np.array([neuron.axon_output(inputs) for neuron in self.neurons])
+        return self.axons_outputs
+
+    def compute_outputs(self, input_matrix):
+        # y = σ(w.T * X + b)
+        # print("shapes:", self.weights.shape, input_matrix.T.shape, self.biases.shape)
+        self.synaps_inputs_sums = np.matmul(self.weights, input_matrix) + self.biases
+        if self.activation_function == 'sigmoid':
+            self.axons_outputs = self.sigmoid(self.synaps_inputs_sums)
+        elif self.activation_function == 'relu':
+            self.axons_outputs = self.relu(self.synaps_inputs_sums)
+        elif self.activation_function == 'tanh':
+            self.axons_outputs = self.tangensH(self.synaps_inputs_sums)
+        else:
+            print("No such activation_function:", self.activation_function)
+            exit()
+        return self.axons_outputs
+    
+    def sigmoid(self, sum_of_inputs):
+        return 1 / (1 + np.exp(-sum_of_inputs))
+    def relu(self, sum_of_inputs):
+        return 0 if sum_of_inputs < 0 else sum_of_inputs
+    def tangensH(self, sum_of_input):
+        return np.tanh(sum_of_input)
 
 class Neuron:
     def __init__(self, weights, bias = 0, activation_function = 'sigmoid'):
-        self.weights = weights
+        self.weights = np.array(weights)
         self.activation_function = activation_function
         self.bias = bias
 
     def axon_output(self, inputs):
-        self.inputs = inputs
+        self.inputs = np.array(inputs)
         if self.activation_function == 'sigmoid':
             self.output = self.sigmoid(self.synaps_inputs_sum())
         elif self.activation_function == 'relu':
@@ -109,11 +236,11 @@ class Neuron:
         return self.output
     
     def sigmoid(self, sum_of_inputs):
-        return 1 / (1 + exp(-sum_of_inputs))
+        return 1 / (1 + np.exp(-sum_of_inputs))
     def relu(self, sum_of_inputs):
         return 0 if sum_of_inputs < 0 else sum_of_inputs
     def tangensH(self, sum_of_input):
-        return tanh(sum_of_input)
+        return np.tanh(sum_of_input)
 
     def synaps_inputs_sum(self):
         sum = 0
@@ -124,22 +251,45 @@ class Neuron:
     # ∂E/∂zⱼ -->  the partial derivative of the neuron error with respect to the neuron input
     # δ = ∂E/∂zⱼ = ∂E/∂yⱼ * dyⱼ/dzⱼ
     def DsynapsError_DsynapsInputsSum(self, desired_output):
-        return self.DsynapsError_Doutput(desired_output) * self.Doutput_DsynapsInputsSum()
+        delta = 0.
+        if self.activation_function == 'sigmoid':
+            delta = self.DsynapsError_Doutput(desired_output) * self.Doutput_DsynapsInputsSum_sigmoid()
+        elif self.activation_function == 'relu':
+            delta = self.DsynapsError_Doutput(desired_output) * self.Doutput_DsynapsInputsSum_relu()
+        elif self.activation_function == 'tanh':
+            delta = self.DsynapsError_Doutput(desired_output) * self.Doutput_DsynapsInputsSum_tanh()
+        else:
+            print("No such activation_function:", self.activation_function)
+            exit()
+        return delta
 
     # The partial derivative of the neuron error with respect to actual neuron output:
-    # ∂E/∂yⱼ = 2 * 0.5 * (desired output - actual output) ^ (2 - 1) * -1 = 
-    #        = -(tⱼ - yⱼ) = -(desired output - actual output)
+    # ∂E/∂yⱼ = 2 * 0.5 * (ŷⱼ - yⱼ) ^ (2 - 1) * -1 = 
+    #        = -(ŷⱼ - yⱼ) = -(desired output - actual output)
     def DsynapsError_Doutput(self, desired_output):
         return -(desired_output - self.output)
 
-    # The derivative of the neuron output with respect to the total network input
+    # The derivative of the neuron output with respect to the total network input (sigmoid)
     #      yⱼ = 1 / (1 + e^(-zⱼ))  | d/dzⱼ
     # dyⱼ/dzⱼ = yⱼ * (1 - yⱼ)
-    def Doutput_DsynapsInputsSum(self):
+    def Doutput_DsynapsInputsSum_sigmoid(self):
         return self.output * (1 - self.output)
 
+    # The derivative of the neuron output with respect to the total network input (relu)
+    #      yⱼ = max(0, zⱼ)  | d/dzⱼ
+    # dyⱼ/dzⱼ = [1 if zⱼ > 0 else 0]
+    def Doutput_DsynapsInputsSum_relu(self):
+        return 1 if self.output > 0 else 0
+
+    # The derivative of the neuron output with respect to the total network input (tanh)
+    #      yⱼ = tanh(zⱼ)  | d/dzⱼ
+    # dyⱼ/dzⱼ = 1 - (tanh(zⱼ))^2
+    # dyⱼ/dzⱼ = 1 - yⱼ^2
+    def Doutput_DsynapsInputsSum_tanh(self):
+        return 1 - self.output ** 2
+
     # Each neuron error is calculated like this:
-    # E = yⱼ* - yⱼ
+    # E = ŷⱼ - yⱼ
     def error(self, desired_output):
         return 0.5 * (desired_output - self.output) ** 2
 
@@ -165,7 +315,7 @@ def main():
                         help='name of file')
 
     parser.add_argument('-n', '--number', dest='number', type=str, choices=('100', '500', '1000', "10000"),
-                        default = "100", help='count of samples')
+                        default = "1000", help='count of samples')
 
     args = vars(parser.parse_args())
 
@@ -176,7 +326,7 @@ def main():
     print('number of samples: {}'.format(args['number']))
 
     #Set seed
-    random.seed(args['seed'])
+    np.random.seed(args['seed'])
 
     try:
         with open('network_params.json') as f:
@@ -187,44 +337,48 @@ def main():
 
     type(network_params)
 
-    network_params.keys()
-    try:
-        print("weight =", network_params["layers"][0]["weights"][0][1])
-    except:
-        print("No such name in json file")
-        
-    print(network_params.keys())
+    # try:
+    #     print("weight =", network_params["layers"][0]["weights"][0][1])
+    # except:
+    #     print("No such name in json file")
+    # print(network_params.keys())
 
     print("Loading train and test files")
-
-    #Load train file
     train_file = read_csv_file(args["type"], args["file"], 'train', args["number"])
-
-    #Load test file
     test_file = read_csv_file(args["type"], args["file"], 'test', args["number"])
 
     # print("Dim: {}\tHead:".format(train_file.shape))
     # print(train_file.head())
 
-    X_train = train_file.x
-    y_train = train_file.y
-
-    X_test = test_file.x
-    y_test = test_file.y
+    # train_file_X = train_file.x
+    # train_file_y = train_file.y
+    # test_file_X = test_file.x
+    # test_file_y = test_file.y
 
     if args["type"] == "classification":
-        train_cls = train_file.cls
-        test_cls = test_file.cls
+        # train_cls = train_file.cls
+        # test_cls = test_file.cls
+        train_set_coords = train_file[:,[0,1]]
+        train_cls = train_file[:,2].astype(int)
+        test_set_coords = test_file[:,[0,1]]
+        test_cls = test_file[:,2].astype(int)
 
-    inputs = [[X_train[i], y_train[i]] for i in range(len(X_train))]
-    outputs = [[1., 0.] if c == 1 else [0., 1.] for c in train_cls]
-    net = Network(training_inputs=inputs, training_outputs=outputs)
-    net.add_first_hidden(10000, 2)
-    net.add(2)
-    # net.print_myself()
-    print("net.error({})={}".format([-0.432234621141106, 0.835330969654024], net.error([[1.]], [[0.8069052718966593, 0.7987629103901848]])))
-    print("net.total_error()={}".format(net.total_error()))
+        net = Network(training_inputs=train_set_coords, training_outputs=train_cls)
+        net.add_first_hidden(20, 2)
+        net.add(20)
+        net.add(2)
+        # net.print_myself()
+        # print("net.error({})={}".format([-0.432234621141106, 0.835330969654024], net.error([[1.]], [[0.8069052718966593, 0.7987629103901848]])))
+        # print("net.total_error()={}".format(net.total_error()))
+        # print("net.cross_entropy_loss()={}".format(net.cross_entropy_loss()))
+        batch_size = 100
+        train_verif_ratio = .8
+        learning_rate = 4
+        relaxation = 0.5
+        net.train(batch_size, train_verif_ratio, learning_rate, relaxation)
 
+    if args["type"] == "Regression":
+        pass
 
     
 
