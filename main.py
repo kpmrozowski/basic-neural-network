@@ -64,13 +64,23 @@ class Network:
         for i in range(len(self.layers)-2, 0, -1):
             dA = np.matmul(self.layers[i+1].weights.T, dZ)
             A = self.layers[i].axons_outputs
-            dZ = dA * A * (1 - A)
+            if self.activation_function == 'sigmoid':
+                dZ = dA * A * (1 - A)
+            if self.activation_function == 'relu':
+                dZ = (A > 0) * 1
+            if self.activation_function == 'tanh':
+                dZ = 1 - A ** 2
             self.layers[i].dW = (1./m_batch) * np.matmul(dZ, self.layers[i-1].axons_outputs.T)
             self.layers[i].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
             # print("shapes_57:", "W[1]", self.layers[i+1].weights.shape, "dA[0]", dA.shape, "A[0]", A.shape, "A[-1]", self.layers[i-1].axons_outputs.shape, "dW[0]", self.layers[i].dW.shape, "db", self.layers[i].db.shape)
         dA = np.matmul(self.layers[1].weights.T, dZ)
         A = self.layers[0].axons_outputs
-        dZ = dA * A * (1 - A)
+        if self.activation_function == 'sigmoid':
+            dZ = dA * A * (1 - A)
+        if self.activation_function == 'relu':
+            dZ = (A > 0) * 1
+        if self.activation_function == 'tanh':
+            dZ = 1 - A ** 2
         self.layers[0].dW = (1./m_batch) * np.matmul(dZ, X.T)
         self.layers[0].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
     
@@ -254,7 +264,9 @@ class Layer:
     def sigmoid(self, sum_of_inputs):
         return 1 / (1 + np.exp(-sum_of_inputs))
     def relu(self, sum_of_inputs):
-        return 0 if sum_of_inputs < 0 else sum_of_inputs
+        result = sum_of_inputs.copy()
+        result[result < 0] = 0
+        return result
     def tangensH(self, sum_of_input):
         return np.tanh(sum_of_input)
 
@@ -407,7 +419,7 @@ def main():
         test_set_coords = test_file[:,[0,1]]
         test_cls = test_file[:,2].astype(int)
 
-        net = Network(training_inputs=train_set_coords, training_outputs=train_cls)
+        net = Network(training_inputs=train_set_coords, training_outputs=train_cls, activation_function='sigmoid')
         net.add_first_hidden(5, 2)
         net.add(2)
         # net.print_myself()

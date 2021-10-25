@@ -118,15 +118,15 @@ class Network:
                 # print(confusion_matrix(predictions, labels))
                 print(comp_confmat(labels, predictions))
                 iterations_left_new = input("How many epochs do you want more?(default {}) Epochs: ".format(learning_rate))
-                if iterations_left_new is not None:
+                if iterations_left_new != '':
                     iterations_left += int(iterations_left_new)
                 if iterations_left == 0:
                     break
                 learning_rate_new = input("What learinig_rate do you want?(default {}) learning_rate=".format(learning_rate))
-                if learning_rate_new is not None:
+                if learning_rate_new != '':
                     learning_rate = float(learning_rate_new)
                 relaxation_new = input("What relaxation parameter do you want?(default {}) relaxation=".format(relaxation))
-                if relaxation_new is not None:
+                if relaxation_new != '':
                     relaxation = float(relaxation_new)
             iterations_left -= 1
             epoch += 1
