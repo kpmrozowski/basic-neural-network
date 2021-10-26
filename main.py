@@ -284,7 +284,6 @@ class Neuron:
         self.activation_function = activation_function
         self.bias = bias
 
-
     # def axon_output(self, inputs):
     #     self.inputs = np.array(inputs)
     #     if self.activation_function == 'sigmoid':
@@ -428,14 +427,14 @@ def main():
         test_set_coords = test_file[:,[0,1]]
         test_cls = test_file[:,2].astype(int)
 
-        net = Network(training_inputs=train_set_coords, training_outputs=train_cls, activation_function='tanh')
-        net.add_first_hidden(10, 2)
+        net = Network(training_inputs=train_set_coords, training_outputs=train_cls, activation_function='sigmoid')
+        net.add_first_hidden(5, 2)
         net.add(2)
         # net.print_myself()
         # print("net.error({})={}".format([-0.432234621141106, 0.835330969654024], net.error([[1.]], [[0.8069052718966593, 0.7987629103901848]])))
         # print("net.total_error()={}".format(net.total_error()))
         # print("net.cross_entropy_loss()={}".format(net.cross_entropy_loss()))
-        learning_rate = .05
+        learning_rate = .1
         relaxation = .1
         batch_size = 128
         train_verif_ratio = .8
