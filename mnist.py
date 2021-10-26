@@ -4,6 +4,7 @@ from posix import XATTR_SIZE_MAX
 import numpy as np
 
 from utils import read_csv_file, comp_confmat
+from sklearn.metrics import classification_report
 
 class Network:
     def __init__(self, training_inputs=None, training_outputs=None, activation_function='sigmoid', problem='Classification'):
@@ -64,23 +65,13 @@ class Network:
         for i in range(len(self.layers)-2, 0, -1):
             dA = np.matmul(self.layers[i+1].weights.T, dZ)
             A = self.layers[i].axons_outputs
-            if self.activation_function == 'sigmoid':
-                dZ = dA * A * (1 - A)
-            if self.activation_function == 'relu':
-                dZ = dA * (A > 0) * 1
-            if self.activation_function == 'tanh':
-                dZ = dA * (1 - A ** 2)
+            dZ = dA * A * (1 - A)
             self.layers[i].dW = (1./m_batch) * np.matmul(dZ, self.layers[i-1].axons_outputs.T)
             self.layers[i].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
             # print("shapes_57:", "W[1]", self.layers[i+1].weights.shape, "dA[0]", dA.shape, "A[0]", A.shape, "A[-1]", self.layers[i-1].axons_outputs.shape, "dW[0]", self.layers[i].dW.shape, "db", self.layers[i].db.shape)
         dA = np.matmul(self.layers[1].weights.T, dZ)
         A = self.layers[0].axons_outputs
-        if self.activation_function == 'sigmoid':
-            dZ = dA * A * (1 - A)
-        if self.activation_function == 'relu':
-            dZ = dA * (A > 0) * 1
-        if self.activation_function == 'tanh':
-            dZ = dA * (1 - A ** 2)
+        dZ = dA * A * (1 - A)
         self.layers[0].dW = (1./m_batch) * np.matmul(dZ, X.T)
         self.layers[0].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
     
@@ -95,7 +86,7 @@ class Network:
         self.Y_train, self.Y_verif = Y[:m].T, Y[m:].T
         batches = -(-m // batch_size)
         epoch = 0
-        iterations_left = 99
+        iterations_left = 9
         while True:
             permutation = np.random.permutation(self.X_train.shape[1])
             X_train_shuffled = self.X_train[:, permutation]
@@ -119,19 +110,16 @@ class Network:
             train_cost = self.cross_entropy_loss()
             self.feed_forward(self.X_verif)
             verif_cost = self.cross_entropy_loss(self.Y_verif)
-            # print("{}".format(epoch+1), end=' ')
-            print("Epoch:{},trainCost={:.4f},verifCost={:.4f}".format(epoch+1, train_cost, verif_cost))
+            print("Epoch {}: training cost = {}, verif cost = {}".format(epoch+1 ,train_cost, verif_cost))
             if iterations_left == 0:
                 predictions = np.argmax(self.layers[-1].axons_outputs.T, axis=1)
                 labels = np.argmax(self.Y_verif, axis=0)
-                # print(classification_report(predictions, labels))
+                print(classification_report(predictions, labels))
                 # print(confusion_matrix(predictions, labels))
                 print(comp_confmat(labels, predictions))
-                iterations_left_new = input("How many epochs do you want more?(default {}) Epochs: ".format(100))
+                iterations_left_new = input("How many epochs do you want more?(default {}) Epochs: ".format(learning_rate))
                 if iterations_left_new != '':
                     iterations_left += int(iterations_left_new)
-                else:
-                    iterations_left += 100
                 if iterations_left == 0:
                     break
                 learning_rate_new = input("What learinig_rate do you want?(default {}) learning_rate=".format(learning_rate))
@@ -142,34 +130,7 @@ class Network:
                     relaxation = float(relaxation_new)
             iterations_left -= 1
             epoch += 1
-        for layer in self.layers:
-            layer.update()
 
-        if True:
-            results_test = np.zeros([self.X_verif.T.shape[0], 3])
-            results_test[:,:2] = self.X_verif.T
-            self.feed_forward(self.X_verif)
-            results_test[:,2] = np.argmax(self.layers[-1].axons_outputs.T, axis=1)
-            np.savetxt("results_test.csv", results_test, delimiter=",")
-            results_train = np.zeros([self.X_train.T.shape[0], 3])
-            results_train[:,:2] = self.X_train.T
-            self.feed_forward(self.X_train)
-            results_train[:,2] = np.argmax(self.layers[-1].axons_outputs.T, axis=1)
-            np.savetxt("results_train.csv", results_train, delimiter=",")
-
-            minX, maxX, minY, maxY = -1., 1., -1., 1.
-            x = np.linspace(minX, maxX, 2**8)
-            y = np.linspace(minY, maxY, 2**8)
-            X, Y = np.meshgrid(x, y)
-            X = X.reshape((np.prod(X.shape),))
-            Y = Y.reshape((np.prod(Y.shape),))
-            meshgrid = np.array([[X[i],Y[i]] for i in range(len(X))])
-
-            results_meshgrid = np.zeros([meshgrid.shape[0], 3])
-            results_meshgrid[:,:2] = meshgrid
-            self.feed_forward(meshgrid.T)
-            results_meshgrid[:,2] = np.argmax(self.layers[-1].axons_outputs.T, axis=1)
-            np.savetxt("results_meshgrid_2classes.csv", results_meshgrid, delimiter=",")
         print("traininig done!")
 
     def error(self, training_sets, output_sets):
@@ -267,23 +228,15 @@ class Layer:
     def sigmoid(self, sum_of_inputs):
         return 1 / (1 + np.exp(-sum_of_inputs))
     def relu(self, sum_of_inputs):
-        result = sum_of_inputs.copy()
-        result[result < 0] = 0
-        return result
+        return 0 if sum_of_inputs < 0 else sum_of_inputs
     def tangensH(self, sum_of_input):
         return np.tanh(sum_of_input)
-    
-    def update(self):
-        for i in range(self.neurons_count):
-            self.neurons[i].weights = self.weights[i]
-            self.neurons[i].bias = self.biases[i]
 
 class Neuron:
     def __init__(self, weights, bias = 0, activation_function = 'sigmoid'):
         self.weights = np.array(weights)
         self.activation_function = activation_function
         self.bias = bias
-
 
     # def axon_output(self, inputs):
     #     self.inputs = np.array(inputs)
@@ -407,40 +360,26 @@ def main():
     # print(network_params.keys())
 
     print("Loading train and test files")
-    train_file = read_csv_file(args["type"], args["file"], 'train', args["number"])
-    test_file = read_csv_file(args["type"], args["file"], 'test', args["number"])
-    shuffle_index = np.random.permutation(train_file.shape[0])
-    train_file = train_file[shuffle_index]
+    data_raw = np.genfromtxt('out/mnist_784.csv', delimiter=',', skip_header = 1, usecols = range(0,785))
+    shuffle_index = np.random.permutation(data_raw.shape[0])
+    data = data_raw[shuffle_index]
+    X = data[:,:784]/255
+    y = data[:,784].astype(int)
+    print("importing dataset...done!")
 
-    # print("Dim: {}\tHead:".format(train_file.shape))
-    # print(train_file.head())
-
-    # train_file_X = train_file.x
-    # train_file_y = train_file.y
-    # test_file_X = test_file.x
-    # test_file_y = test_file.y
-
-    if args["type"] == "classification":
-        # train_cls = train_file.cls
-        # test_cls = test_file.cls
-        train_set_coords = train_file[:,[0,1]]
-        train_cls = train_file[:,2].astype(int)
-        test_set_coords = test_file[:,[0,1]]
-        test_cls = test_file[:,2].astype(int)
-
-        net = Network(training_inputs=train_set_coords, training_outputs=train_cls, activation_function='tanh')
-        net.add_first_hidden(10, 2)
-        net.add(2)
-        # net.print_myself()
-        # print("net.error({})={}".format([-0.432234621141106, 0.835330969654024], net.error([[1.]], [[0.8069052718966593, 0.7987629103901848]])))
-        # print("net.total_error()={}".format(net.total_error()))
-        # print("net.cross_entropy_loss()={}".format(net.cross_entropy_loss()))
-        learning_rate = .05
-        relaxation = .1
-        batch_size = 128
-        train_verif_ratio = .8
-        net.train(batch_size, train_verif_ratio, learning_rate, relaxation)
-        net.print_myself()
+    net = Network(training_inputs=X, training_outputs=y)
+    net.add_first_hidden(64, 784)
+    net.add(10)
+    # net.print_myself()
+    # print("net.error({})={}".format([-0.432234621141106, 0.835330969654024], net.error([[1.]], [[0.8069052718966593, 0.7987629103901848]])))
+    # print("net.total_error()={}".format(net.total_error()))
+    # print("net.cross_entropy_loss()={}".format(net.cross_entropy_loss()))
+    learning_rate = 4
+    relaxation = .1
+    batch_size = 128
+    train_verif_ratio = .8
+    net.train(batch_size, train_verif_ratio, learning_rate, relaxation)
+    # net.print_myself()
 
     if args["type"] == "Regression":
         pass
