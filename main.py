@@ -2,12 +2,12 @@ import json
 import argparse
 from posix import XATTR_SIZE_MAX
 import numpy as np
-from matplotlib import pyplot
+from matplotlib import pyplot, colors
 from mnist import Networkm
 from utils import read_csv_file, comp_confmat #, DrawNN
 
 class Network:
-    def __init__(self, training_inputs=None, training_outputs=None, activation_function='sigmoid', problem='classification'):
+    def __init__(self, training_inputs=None, training_outputs=None, cost_function='pseudo_huber', activation_function='sigmoid', problem='classification'):
         self.layers_count = 0
         self.layers = []
         self.problem = problem
@@ -17,6 +17,7 @@ class Network:
         self.Y_train = np.array([])
         self.X_verif = np.array([])
         self.Y_verif = np.array([])
+        self.cost_function = cost_function
         self.activation_function = activation_function
         self.huber_delta = 1.
         self.bounds_raw = np.zeros((4))
@@ -77,9 +78,16 @@ class Network:
                 self.layers[-1].sum_of_inputs(self.layers[-2].axons_outputs)
 
     def back_propagate(self, X, Y, m_batch):
-        # dZ = self.layers[-1].axons_outputs - Y
         a = self.layers[-1].axons_outputs - Y
-        dZ = np.square(self.huber_delta) * a / np.sqrt(1 + np.square(a/self.huber_delta))
+        if self.cost_function == 'pseudo_huber':
+            dZ = np.square( self.huber_delta ) * a / np.sqrt(1 + np.square( np.divide( a, self.huber_delta ) ) )
+        elif self.cost_function == 'mean_squared_error':
+            dZ = a
+        elif self.cost_function == 'cross_entropy':
+            Y_predicted = self.layers[-1].axons_outputs
+            Y_predicted[ Y_predicted > 1 - 1e-6 ] = 1 - 1e-6
+            Y_predicted[ Y_predicted < 1e-6 ] = 1e-6
+            dZ = - np.divide( Y, Y_predicted ) + np.divide( 1 - Y, 1 - Y_predicted )
         if len(self.layers) == 1:
             self.layers[-1].dW = (1./m_batch) * np.matmul(dZ, X.T)
         else:
@@ -145,12 +153,15 @@ class Network:
                     layer.V_db = (1. - relaxation) * layer.V_db + relaxation * layer.db
                     layer.weights -= learning_rate * layer.V_dW
                     layer.biases -= learning_rate * layer.V_db
-            if self.problem == 'classification':
+            if self.cost_function == 'cross_entropy':
                 train_cost = self.cross_entropy_loss()
                 verif_cost = self.cross_entropy_loss(self.Y_verif)
-            elif self.problem == 'regression':
+            elif self.cost_function == 'pseudo_huber_loss':
                 train_cost = self.pseudo_huber_loss()
                 verif_cost = self.pseudo_huber_loss(self.Y_verif)
+            elif self.cost_function == 'mean_squared_error':
+                train_cost = self.mean_squared_error()
+                verif_cost = self.mean_squared_error(self.Y_verif)
             # print("{}".format(epoch+1), end=' ')
             if epoch % 10 == 0:
                 print("Epoch:{},trainCost={:.4f}‰,verifCost={:.4f}‰".format(epoch+1, 1000*train_cost, 1000*verif_cost))
@@ -166,10 +177,10 @@ class Network:
                     self.feed_forward(self.X_verif)
                     Y = self.layers[-1].axons_outputs
                     E = np.abs( Y - self.Y_verif )
-                    rmse_verif = np.sum(np.sqrt(((Y - self.Y_verif) ** 2).mean()))
-                    print('Root Mean Squared Error(verif)={:.2f}‰'.format(1000*rmse_verif))
-                    print("Accuracy (|Y-Yhat|<{}%): {}%". format(.0001, 100 * np.divide( np.sum( E < .001 ), Y.shape[1] ) ) )
-                    ax0.set_title('Veryficating set, RMSE={:.2f}‰'.format(1000*rmse_verif))
+                    mse_verif = self.mean_squared_error(self.Y_verif)
+                    print('Mean Squared Error(verif)={:.2f}‰'.format(1000*mse_verif))
+                    print("Accuracy (|Y-Yhat|<{}%): {}%". format(.001, 100 * np.divide( np.sum( E < .001 ), Y.shape[1] ) ) )
+                    ax0.set_title('Veryficating set, MSE={:.2f}‰'.format(1000*mse_verif))
                     X_verif = self.bounds_raw[0] + np.multiply( self.X_verif, self.bounds_raw[1] - self.bounds_raw[0] )
                     Y_verif = self.bounds_raw[2] + np.multiply( self.Y_verif, self.bounds_raw[3] - self.bounds_raw[2] )
                     Y_verif_pred = self.bounds_raw[2] + np.multiply( Y, self.bounds_raw[3] - self.bounds_raw[2] )
@@ -179,10 +190,10 @@ class Network:
                     self.feed_forward(self.X_train)
                     Y = self.layers[-1].axons_outputs
                     E = np.abs( Y - self.Y_train )
-                    rmse_train = np.sum(np.sqrt(((Y - self.Y_train) ** 2).mean()))
-                    print('Root Mean Squared Error(train)={:.2f}‰'.format(1000*rmse_train))
+                    mse_train = self.mean_squared_error()
+                    print('Mean Squared Error(train)={:.2f}‰'.format(1000*mse_train))
                     print("Accuracy (|Y-Yhat|<{}%): {}%". format(.001, 100 * np.divide( np.sum( E < .001 ), Y.shape[1] ) ) )
-                    ax1.set_title('Training set, RMSE={:.2f}‰'.format(1000*rmse_train))
+                    ax1.set_title('Training set, MSE={:.2f}‰'.format(1000*mse_train))
                     ax1.set(xlabel='x', ylabel='y')
                     X_train = self.bounds_raw[0] + np.multiply( self.X_train, self.bounds_raw[1] - self.bounds_raw[0] )
                     Y_train = self.bounds_raw[2] + np.multiply( self.Y_train, self.bounds_raw[3] - self.bounds_raw[2] )
@@ -249,16 +260,6 @@ class Network:
                 error += self.layers[-1].neurons[o].error(training_outputs[o])
         return error
 
-    def total_error(self):
-        error = 0
-        for i in range(self.X_train.shape[0]):
-            x = self.X_train[i]
-            y = self.Y_train[i]
-            self.inference(x)
-            for o in range(len(y)):
-                error += self.layers[-1].neurons[o].error(y[o])
-        return error
-
     # L(Ŷ,Y)= −(1/m) * ∑_{i=0}^{m}{ ŷᵢ * log(yᵢ) + (1−ŷᵢ) * log(1−yᵢ) }.
     def cross_entropy_loss(self, Y_verif=None):
         if Y_verif is None:
@@ -269,16 +270,10 @@ class Network:
             self.feed_forward(self.X_verif)
         Y = self.layers[-1].axons_outputs
         m = Y_hat.shape[1]
-        logY = np.log(Y)
-        logY[np.isneginf(logY)] = 0
-        a = np.multiply( logY, Y_hat)
-        # b = np.multiply( np.log(1-Y), 1-Y_hat)
-        sum_a = np.sum( a )
-        # sum_b = np.sum( b )
-        result =  -(1./m) * ( sum_a ) #+ sum_b )
-        return result
-
-    def huber_loss(self, Y_verif=None):
+        Y[Y == 0.0] = 1e-6
+        Y[Y == 1.0] = 1 - 1e-6
+        a = np.multiply( np.log(Y), Y_hat)
+        b = np.multiply( np.log(1-Y), 1-Y_hat)
         if Y_verif is None:
             Y_hat = self.Y_train
             self.feed_forward(self.X_train)
@@ -301,7 +296,7 @@ class Network:
         Y = self.layers[-1].axons_outputs
         return np.divide( np.sum( np.square( self.huber_delta ) * ( np.sqrt( 1 + np.square( np.divide( Y - Y_hat, self.huber_delta ) ) ) - 1 ) ) , Y_hat.shape[1] )
 
-    def root_mean_squared_error(self, Y_verif=None):
+    def mean_squared_error(self, Y_verif=None):
         if Y_verif is None:
             Y_hat = self.Y_train
             self.feed_forward(self.X_train)
@@ -370,10 +365,14 @@ class Layer:
         return self.axons_outputs
     
     def soft_max(self, input_matrix):
+        input_matrix[ np.isnan(input_matrix) ] = 0
         self.synaps_inputs_sums = np.matmul(self.weights, input_matrix) + self.biases
         sum = np.sum(np.exp(self.synaps_inputs_sums), axis=0)
-        sum[sum < 1e-6] = 1e-6
+        # sum[ np.abs(sum) < 1e-6 ] = 1e-6 * np.sign( sum[ np.abs(sum) < 1e-6 ] )
+
         self.axons_outputs = np.divide( np.exp(self.synaps_inputs_sums), sum )
+        if np.sum( self.axons_outputs < 0 ) > 0:
+            print('')
         return self.axons_outputs
     
     def sum_of_inputs(self, input_matrix):
@@ -480,6 +479,22 @@ class Neuron:
     # def DsynapsInputsSum_Dweight(self, index):
     #     return self.inputs[index]
 
+def plot_set(set):
+    set_coords = set[:,:-1]
+    cls = set[:,-1].astype(int)
+
+    min_cls = np.min(cls)
+    max_cls = np.max(cls)
+    classes_count = max_cls - min_cls + 1
+    
+    col = ['red','green','blue']
+    fig = pyplot.figure(figsize=(8,8))
+    pyplot.scatter(set_coords[:,0], set_coords[:,1], c=cls, cmap=colors.ListedColormap(col[:classes_count]))
+    cb = pyplot.colorbar()
+    loc = np.arange(0,max(cls),max(cls)/float(classes_count))
+    cb.set_ticks(loc)
+    cb.set_ticklabels(col[:classes_count])
+    pyplot.show()
 
 
 def main():
@@ -493,9 +508,17 @@ def main():
                         choices=('classification', 'regression'),
                         default='classification', help='type of algorithm')
 
+    parser.add_argument('-c', '--cost', dest='cost', type=str, 
+                        choices=('cross_entropy', 'mean_squared_error', 'pseudo_huber_loss'),
+                        default='mean_squared_error', help='type of cost function')
+
+    parser.add_argument('-a', '--activation', dest='cost', type=str, 
+                        choices=('sigmoid', 'relu', 'tanh'),
+                        default='sigmoid', help='type of cost function')
+
     parser.add_argument('-f', '--file', dest='file', type=str, 
                         choices=('simple', 'three_gauss', 'activation', 'cube', 'mnist'), 
-                        default="mnist", help='name of file')
+                        default="three_gauss", help='name of file')
 
     parser.add_argument('-n', '--number', dest='number', type=str,
                         choices=('100', '500', '1000', "10000"),
@@ -503,11 +526,12 @@ def main():
 
     args = vars(parser.parse_args())
 
-    print('Configuration')
-    print('seed: {}'.format(args['seed']))
-    print('algoritm type: {}'.format(args['type']))
-    print('filename: {}'.format(args['file']))
-    print('number of samples: {}'.format(args['number']))
+    if False:
+        print('Configuration')
+        print('seed: {}'.format(args['seed']))
+        print('algoritm type: {}'.format(args['type']))
+        print('filename: {}'.format(args['file']))
+        print('number of samples: {}'.format(args['number']))
 
     #Set seed
     np.random.seed(args['seed'])
@@ -558,8 +582,13 @@ def main():
         net.train(batch_size, train_verif_ratio, learning_rate, relaxation)
     
     elif args["type"] == "classification":
-        # train_cls = train_file.cls
-        # test_cls = test_file.cls
+        shuffle_index_train = np.random.permutation(train_file.shape[0])
+        shuffle_index_test = np.random.permutation(test_file.shape[0])
+        train_file = train_file[shuffle_index_train]
+        test_file  = test_file[shuffle_index_test]
+        if False:
+            plot_set(train_file)
+            plot_set(test_file)
         train_set_coords = train_file[:,:-1]
         train_cls = train_file[:,-1].astype(int)
         test_set_coords = test_file[:,:-1]
@@ -569,17 +598,12 @@ def main():
         max_cls = np.max(train_cls)
         classes_count = max_cls - min_cls + 1
 
-        net = Network(training_inputs=train_set_coords, training_outputs=train_cls, activation_function='relu', problem=args["type"])
+        net = Network(training_inputs=train_set_coords, training_outputs=train_cls, cost_function=args["cost"], activation_function='relu', problem=args["type"])
         net.add_first_hidden(classes_count**3, train_set_coords.shape[1])
-        net.add(classes_count**3)
-        net.add(classes_count**2)
+        net.add(classes_count*3)
+        net.add(classes_count*2)
         net.add(classes_count)
-        # net.print_myself()
-        # net.print_myself()
-        # print("net.error({})={}".format([-0.432234621141106, 0.835330969654024], net.error([[1.]], [[0.8069052718966593, 0.7987629103901848]])))
-        # print("net.total_error()={}".format(net.total_error()))
-        # print("net.cross_entropy_loss()={}".format(net.cross_entropy_loss()))
-        learning_rate = .1
+        learning_rate = .1      # .1 for mean_squared_error      1e-4 for cross_entropy
         relaxation = .1
         batch_size = 128
         train_verif_ratio = .8
@@ -593,7 +617,7 @@ def main():
         test_set_coords = test_file[:,:-1][:,0]
         test_value = test_file[:,-1].astype(float)
 
-        net = Network(training_inputs=train_set_coords, training_outputs=train_value, activation_function='tanh', problem=args["type"])
+        net = Network(training_inputs=train_set_coords, training_outputs=train_value, cost_function=args["cost"], activation_function='tanh', problem=args["type"])
         net.add_first_hidden(20, 1)
         net.add(20)
         net.add(1)
