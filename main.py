@@ -3,7 +3,7 @@ import argparse
 from posix import XATTR_SIZE_MAX
 import numpy as np
 from matplotlib import pyplot
-
+from mnist import Networkm
 from utils import read_csv_file, comp_confmat #, DrawNN
 
 class Network:
@@ -66,15 +66,24 @@ class Network:
         for i in range(1, len(self.layers)-1):
             self.layers[i].compute_outputs(self.layers[i-1].axons_outputs)
         if self.problem == 'classification':
-            self.layers[-1].soft_max(self.layers[-2].axons_outputs)
+            if len(self.layers) == 1:
+                self.layers[-1].soft_max(X)
+            else:
+                self.layers[-1].soft_max(self.layers[-2].axons_outputs)
         elif self.problem == 'regression':
-            self.layers[-1].sum_of_inputs(self.layers[-2].axons_outputs)
+            if len(self.layers) == 1:
+                self.layers[-1].sum_of_inputs(X)
+            else:
+                self.layers[-1].sum_of_inputs(self.layers[-2].axons_outputs)
 
     def back_propagate(self, X, Y, m_batch):
         # dZ = self.layers[-1].axons_outputs - Y
         a = self.layers[-1].axons_outputs - Y
         dZ = np.square(self.huber_delta) * a / np.sqrt(1 + np.square(a/self.huber_delta))
-        self.layers[-1].dW = (1./m_batch) * np.matmul(dZ, self.layers[-2].axons_outputs.T)
+        if len(self.layers) == 1:
+            self.layers[-1].dW = (1./m_batch) * np.matmul(dZ, X.T)
+        else:
+            self.layers[-1].dW = (1./m_batch) * np.matmul(dZ, self.layers[-2].axons_outputs.T)
         self.layers[-1].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
         for i in range(len(self.layers)-2, 0, -1):
             dA = np.matmul(self.layers[i+1].weights.T, dZ)
@@ -87,14 +96,15 @@ class Network:
                 dZ = dA * (1 - A ** 2)
             self.layers[i].dW = (1./m_batch) * np.matmul(dZ, self.layers[i-1].axons_outputs.T)
             self.layers[i].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
-        dA = np.matmul(self.layers[1].weights.T, dZ)
-        A = self.layers[0].axons_outputs
-        if self.activation_function == 'sigmoid':
-            dZ = dA * A * (1 - A)
-        if self.activation_function == 'relu':
-            dZ = dA * (A > 0) * 1
-        if self.activation_function == 'tanh':
-            dZ = dA * (1 - A ** 2)
+        if len(self.layers) > 1:
+            dA = np.matmul(self.layers[1].weights.T, dZ)
+            A = self.layers[0].axons_outputs
+            if self.activation_function == 'sigmoid':
+                dZ = dA * A * (1 - A)
+            if self.activation_function == 'relu':
+                dZ = dA * (A > 0) * 1
+            if self.activation_function == 'tanh':
+                dZ = dA * (1 - A ** 2)
         self.layers[0].dW = (1./m_batch) * np.matmul(dZ, X.T)
         self.layers[0].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
     
@@ -135,7 +145,7 @@ class Network:
                     layer.V_db = (1. - relaxation) * layer.V_db + relaxation * layer.db
                     layer.weights -= learning_rate * layer.V_dW
                     layer.biases -= learning_rate * layer.V_db
-            if self.problem == 'classyfication':
+            if self.problem == 'classification':
                 train_cost = self.cross_entropy_loss()
                 verif_cost = self.cross_entropy_loss(self.Y_verif)
             elif self.problem == 'regression':
@@ -145,7 +155,7 @@ class Network:
             if epoch % 10 == 0:
                 print("Epoch:{},trainCost={:.4f}‰,verifCost={:.4f}‰".format(epoch+1, 1000*train_cost, 1000*verif_cost))
             if iterations_left < 0:
-                if self.problem == 'classyfication':
+                if self.problem == 'classification':
                     predictions = np.argmax(self.layers[-1].axons_outputs.T, axis=1)
                     labels = np.argmax(self.Y_verif, axis=0)
                     print(comp_confmat(labels, predictions))
@@ -186,7 +196,7 @@ class Network:
                     iterations_left += int(iterations_left_new)
                 else:
                     iterations_left += iterations_initial
-                if iterations_left == 0:
+                if iterations_left == -1:
                     break
                 learning_rate_new = input("What learinig_rate do you want?(default {}) learning_rate=".format(learning_rate))
                 if learning_rate_new != '':
@@ -260,6 +270,7 @@ class Network:
         Y = self.layers[-1].axons_outputs
         m = Y_hat.shape[1]
         logY = np.log(Y)
+        logY[np.isneginf(logY)] = 0
         a = np.multiply( logY, Y_hat)
         # b = np.multiply( np.log(1-Y), 1-Y_hat)
         sum_a = np.sum( a )
@@ -360,7 +371,9 @@ class Layer:
     
     def soft_max(self, input_matrix):
         self.synaps_inputs_sums = np.matmul(self.weights, input_matrix) + self.biases
-        self.axons_outputs = np.exp(self.synaps_inputs_sums) / np.sum(np.exp(self.synaps_inputs_sums), axis=0)
+        sum = np.sum(np.exp(self.synaps_inputs_sums), axis=0)
+        sum[sum < 1e-6] = 1e-6
+        self.axons_outputs = np.divide( np.exp(self.synaps_inputs_sums), sum )
         return self.axons_outputs
     
     def sum_of_inputs(self, input_matrix):
@@ -478,11 +491,11 @@ def main():
 
     parser.add_argument('-t', '--type', dest='type', type=str, 
                         choices=('classification', 'regression'),
-                        default='regression', help='type of algorithm')
+                        default='classification', help='type of algorithm')
 
     parser.add_argument('-f', '--file', dest='file', type=str, 
-                        choices=('simple', 'three_gauss', 'activation', 'cube'), 
-                        default="cube", help='name of file')
+                        choices=('simple', 'three_gauss', 'activation', 'cube', 'mnist'), 
+                        default="mnist", help='name of file')
 
     parser.add_argument('-n', '--number', dest='number', type=str,
                         choices=('100', '500', '1000', "10000"),
@@ -528,7 +541,23 @@ def main():
     # test_file_X = test_file.x
     # test_file_y = test_file.y
 
-    if args["type"] == "classification":
+    if args["file"] == 'mnist':
+        shuffle_index = np.random.permutation(train_file.shape[0])
+        data = train_file[shuffle_index]
+        train_set_X = data[:,:784]/255
+        train_set_Y = data[:,784].astype(int)
+        print("importing dataset...done!")
+
+        net = Networkm(training_inputs=train_set_X, training_outputs=train_set_Y, activation_function='sigmoid', problem='classification')
+        net.add_first_hidden(64, 784)
+        net.add(10)
+        learning_rate = 4
+        relaxation = .1
+        batch_size = 128
+        train_verif_ratio = .8
+        net.train(batch_size, train_verif_ratio, learning_rate, relaxation)
+    
+    elif args["type"] == "classification":
         # train_cls = train_file.cls
         # test_cls = test_file.cls
         train_set_coords = train_file[:,:-1]

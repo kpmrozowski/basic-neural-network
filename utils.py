@@ -9,8 +9,11 @@ def read_csv_file(method, file, type, count):
         # count = count.astype(str)
 
     # csv_file = pd.read_csv("data/{}/data.{}.{}.{}.csv".format(method, file, type, count))
-    csv_file = np.genfromtxt("data/{}/data.{}.{}.{}.csv".format(method, file, type, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
-    return csv_file
+    if file == 'mnist' and type == 'train':
+        return np.genfromtxt('out/mnist_784.csv', delimiter=',', skip_header = 1, usecols = range(0,785))
+    elif file != 'mnist':
+        return np.genfromtxt("data/{}/data.{}.{}.{}.csv".format(method, file, type, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
+    return None
 
 def comp_confmat(actual, predicted):
 

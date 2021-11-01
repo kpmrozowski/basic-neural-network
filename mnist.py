@@ -6,8 +6,8 @@ import numpy as np
 from utils import read_csv_file, comp_confmat
 from sklearn.metrics import classification_report
 
-class Network:
-    def __init__(self, training_inputs=None, training_outputs=None, activation_function='sigmoid', problem='Classification'):
+class Networkm:
+    def __init__(self, training_inputs=None, training_outputs=None, activation_function='sigmoid', problem='classification'):
         self.layers_count = 0
         self.layers = []
         self.problem = problem
@@ -77,7 +77,7 @@ class Network:
     
     def train(self, batch_size, train_verif_ratio, learning_rate, relaxation):
         m = int((self.X_raw.shape[0] * train_verif_ratio))
-        if self.problem == 'Classification':
+        if self.problem == 'classification':
             min_cls = np.min(self.Y_raw)
             max_cls = np.max(self.Y_raw)
             classes_count = max_cls - min_cls + 1
@@ -367,7 +367,7 @@ def main():
     y = data[:,784].astype(int)
     print("importing dataset...done!")
 
-    net = Network(training_inputs=X, training_outputs=y)
+    net = Networkm(training_inputs=X, training_outputs=y)
     net.add_first_hidden(64, 784)
     net.add(10)
     # net.print_myself()
