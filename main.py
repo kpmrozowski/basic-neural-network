@@ -11,15 +11,16 @@ class Network:
         self.layers_count = 0
         self.layers = []
         self.problem = problem
-        self.X_raw = training_inputs
-        self.Y_raw = training_outputs
+        self.X_raw = np.array(training_inputs)
+        self.Y_raw = np.array(training_outputs)
         self.X_train = np.array([])
         self.Y_train = np.array([])
         self.X_verif = np.array([])
         self.Y_verif = np.array([])
         self.activation_function = activation_function
         self.huber_delta = 1.
-
+        self.bounds_raw = np.zeros((4))
+    
     def add_first_hidden(self, neurons_count, inputs_count, biases = None, weights_mat = None):
         input_layer = Layer(inputs_count, None, None)
         self.layers.append(Layer(neurons_count, biases, weights_mat, input_layer, self.activation_function))
@@ -107,8 +108,10 @@ class Network:
             self.X_train, self.X_verif = self.X_raw[:m].T, self.X_raw[m:].T
             self.Y_train, self.Y_verif = Y[:m].T, Y[m:].T
         elif self.problem == 'regression':
-            Y = self.Y_raw
-            self.X_train, self.X_verif = np.array([self.X_raw[:m]]), np.array([self.X_raw[m:]])
+            self.bounds_raw = np.array([self.X_raw.min(), self.X_raw.max(), self.Y_raw.min(), self.Y_raw.max()])
+            Y = np.divide( self.Y_raw - self.bounds_raw[2], self.bounds_raw[3] - self.bounds_raw[2] )
+            X = np.divide( self.X_raw - self.bounds_raw[0], self.bounds_raw[1] - self.bounds_raw[0] )
+            self.X_train, self.X_verif = np.array([X[:m]]), np.array([X[m:]])
             self.Y_train, self.Y_verif = np.array([Y[:m]]), np.array([Y[m:]])
             self.huber_delta = huber_delta
         batches = -(-m // batch_size)
@@ -140,7 +143,7 @@ class Network:
                 verif_cost = self.pseudo_huber_loss(self.Y_verif)
             # print("{}".format(epoch+1), end=' ')
             if epoch % 10 == 0:
-                print("Epoch:{},trainCost={:.4f},verifCost={:.4f}".format(epoch+1, train_cost, verif_cost))
+                print("Epoch:{},trainCost={:.4f}‰,verifCost={:.4f}‰".format(epoch+1, 1000*train_cost, 1000*verif_cost))
             if iterations_left < 0:
                 if self.problem == 'classyfication':
                     predictions = np.argmax(self.layers[-1].axons_outputs.T, axis=1)
@@ -152,18 +155,24 @@ class Network:
                     fig.suptitle('Vertically stacked subplots')
                     self.feed_forward(self.X_verif)
                     rmse_verif = np.sum(np.sqrt(((self.layers[-1].axons_outputs - self.Y_verif) ** 2).mean()))
-                    print('Root Mean Squared Error(verif)=', rmse_verif)
-                    ax0.set_title('Veryficating set, RMSE=' + str(rmse_verif))
-                    l00 = ax0.scatter(self.X_verif , self.Y_verif, marker="o",  s=2)
-                    l01 = ax0.scatter(self.X_verif , self.layers[-1].axons_outputs, marker="o",  s=2)
+                    print('Root Mean Squared Error(verif)={:.2f}‰'.format(1000*rmse_verif))
+                    ax0.set_title('Veryficating set, RMSE={:.2f}‰'.format(1000*rmse_verif))
+                    X_verif = self.bounds_raw[0] + np.multiply( self.X_verif, self.bounds_raw[1] - self.bounds_raw[0] )
+                    Y_verif = self.bounds_raw[2] + np.multiply( self.Y_verif, self.bounds_raw[3] - self.bounds_raw[2] )
+                    Y_verif_pred = self.bounds_raw[2] + np.multiply( self.layers[-1].axons_outputs, self.bounds_raw[3] - self.bounds_raw[2] )
+                    l00 = ax0.scatter(X_verif , Y_verif, marker="o",  s=2)
+                    l01 = ax0.scatter(X_verif , Y_verif_pred, marker="o",  s=2)
                     ax0.legend((l00, l01), ('Y_verif', 'predictions'), loc='upper right', shadow=True)
                     self.feed_forward(self.X_train)
                     rmse_train = np.sum(np.sqrt(((self.layers[-1].axons_outputs - self.Y_train) ** 2).mean()))
-                    print('Root Mean Squared Error(train)=', rmse_train)
-                    ax1.set_title('Training set, RMSE=' + str(rmse_train))
+                    print('Root Mean Squared Error(train)={:.2f}‰'.format(1000*rmse_train))
+                    ax1.set_title('Training set, RMSE={:.2f}‰'.format(1000*rmse_train))
                     ax1.set(xlabel='x', ylabel='y')
-                    l10 = ax1.scatter(self.X_train, self.Y_train, marker="o",  s=.5)
-                    l11 = ax1.scatter(self.X_train, self.layers[-1].axons_outputs, marker="o",  s=.5)
+                    X_train = self.bounds_raw[0] + np.multiply( self.X_train, self.bounds_raw[1] - self.bounds_raw[0] )
+                    Y_train = self.bounds_raw[2] + np.multiply( self.Y_train, self.bounds_raw[3] - self.bounds_raw[2] )
+                    Y_train_pred = self.bounds_raw[2] + np.multiply( self.layers[-1].axons_outputs, self.bounds_raw[3] - self.bounds_raw[2] )
+                    l10 = ax1.scatter(X_train, Y_train, marker="o",  s=.5)
+                    l11 = ax1.scatter(X_train, Y_train_pred, marker="o",  s=.5)
                     ax1.legend((l10, l11), ('Y_train', 'predictions'), loc='upper right', shadow=True)
                     pyplot.show()
                 iterations_left_new = input("How many epochs do you want more?(default {}) Epochs: ".format(iterations_initial))
@@ -551,7 +560,7 @@ def main():
         net.add(20)
         net.add(1)
         # net.print_myself()
-        learning_rate = .01
+        learning_rate = .5
         relaxation = .1
         batch_size = 128
         train_verif_ratio = .8
