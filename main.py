@@ -154,23 +154,29 @@ class Network:
                     fig, (ax0, ax1) = pyplot.subplots(1,2)
                     fig.suptitle('Vertically stacked subplots')
                     self.feed_forward(self.X_verif)
-                    rmse_verif = np.sum(np.sqrt(((self.layers[-1].axons_outputs - self.Y_verif) ** 2).mean()))
+                    Y = self.layers[-1].axons_outputs
+                    E = np.abs( Y - self.Y_verif )
+                    rmse_verif = np.sum(np.sqrt(((Y - self.Y_verif) ** 2).mean()))
                     print('Root Mean Squared Error(verif)={:.2f}‰'.format(1000*rmse_verif))
+                    print("Accuracy (|Y-Yhat|<{}%): {}%". format(.0001, 100 * np.divide( np.sum( E < .001 ), Y.shape[1] ) ) )
                     ax0.set_title('Veryficating set, RMSE={:.2f}‰'.format(1000*rmse_verif))
                     X_verif = self.bounds_raw[0] + np.multiply( self.X_verif, self.bounds_raw[1] - self.bounds_raw[0] )
                     Y_verif = self.bounds_raw[2] + np.multiply( self.Y_verif, self.bounds_raw[3] - self.bounds_raw[2] )
-                    Y_verif_pred = self.bounds_raw[2] + np.multiply( self.layers[-1].axons_outputs, self.bounds_raw[3] - self.bounds_raw[2] )
+                    Y_verif_pred = self.bounds_raw[2] + np.multiply( Y, self.bounds_raw[3] - self.bounds_raw[2] )
                     l00 = ax0.scatter(X_verif , Y_verif, marker="o",  s=2)
                     l01 = ax0.scatter(X_verif , Y_verif_pred, marker="o",  s=2)
                     ax0.legend((l00, l01), ('Y_verif', 'predictions'), loc='upper right', shadow=True)
                     self.feed_forward(self.X_train)
-                    rmse_train = np.sum(np.sqrt(((self.layers[-1].axons_outputs - self.Y_train) ** 2).mean()))
+                    Y = self.layers[-1].axons_outputs
+                    E = np.abs( Y - self.Y_train )
+                    rmse_train = np.sum(np.sqrt(((Y - self.Y_train) ** 2).mean()))
                     print('Root Mean Squared Error(train)={:.2f}‰'.format(1000*rmse_train))
+                    print("Accuracy (|Y-Yhat|<{}%): {}%". format(.001, 100 * np.divide( np.sum( E < .001 ), Y.shape[1] ) ) )
                     ax1.set_title('Training set, RMSE={:.2f}‰'.format(1000*rmse_train))
                     ax1.set(xlabel='x', ylabel='y')
                     X_train = self.bounds_raw[0] + np.multiply( self.X_train, self.bounds_raw[1] - self.bounds_raw[0] )
                     Y_train = self.bounds_raw[2] + np.multiply( self.Y_train, self.bounds_raw[3] - self.bounds_raw[2] )
-                    Y_train_pred = self.bounds_raw[2] + np.multiply( self.layers[-1].axons_outputs, self.bounds_raw[3] - self.bounds_raw[2] )
+                    Y_train_pred = self.bounds_raw[2] + np.multiply( Y, self.bounds_raw[3] - self.bounds_raw[2] )
                     l10 = ax1.scatter(X_train, Y_train, marker="o",  s=.5)
                     l11 = ax1.scatter(X_train, Y_train_pred, marker="o",  s=.5)
                     ax1.legend((l10, l11), ('Y_train', 'predictions'), loc='upper right', shadow=True)
@@ -185,6 +191,9 @@ class Network:
                 learning_rate_new = input("What learinig_rate do you want?(default {}) learning_rate=".format(learning_rate))
                 if learning_rate_new != '':
                     learning_rate = float(learning_rate_new)
+                huber_delta_new = input("What huber_delta do you want?(default {}) huber_delta=".format(self.huber_delta))
+                if huber_delta_new != '':
+                    self.huber_delta = float(huber_delta_new)
                 relaxation_new = input("What relaxation parameter do you want?(default {}) relaxation=".format(relaxation))
                 if relaxation_new != '':
                     relaxation = float(relaxation_new)
@@ -560,6 +569,11 @@ def main():
         net.add(20)
         net.add(1)
         # net.print_myself()
+
+        # ustawienia:
+        # iter  |   learning_rate   |   huber_delta
+        #  1    |          0.5      |      2.00      
+        #  2    |         16.0      |      0.09     
         learning_rate = .5
         relaxation = .1
         batch_size = 128
