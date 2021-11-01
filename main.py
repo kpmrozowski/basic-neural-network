@@ -156,7 +156,7 @@ class Network:
             if self.cost_function == 'cross_entropy':
                 train_cost = self.cross_entropy_loss()
                 verif_cost = self.cross_entropy_loss(self.Y_verif)
-            elif self.cost_function == 'pseudo_huber_loss':
+            elif self.cost_function == 'pseudo_huber':
                 train_cost = self.pseudo_huber_loss()
                 verif_cost = self.pseudo_huber_loss(self.Y_verif)
             elif self.cost_function == 'mean_squared_error':
@@ -509,7 +509,7 @@ def main():
                         default='classification', help='type of algorithm')
 
     parser.add_argument('-c', '--cost', dest='cost', type=str, 
-                        choices=('cross_entropy', 'mean_squared_error', 'pseudo_huber_loss'),
+                        choices=('cross_entropy', 'mean_squared_error', 'pseudo_huber'),
                         default='mean_squared_error', help='type of cost function')
 
     parser.add_argument('-a', '--activation', dest='cost', type=str, 
