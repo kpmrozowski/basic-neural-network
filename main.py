@@ -162,10 +162,10 @@ def main():
                     net.add(args["neurons"])
                 net.add(classes_count)
         else:     
-            cost_function = 'cross_entropy'
+            cost_function = 'mean_squared_error'
             activation_function = 'relu'
             problem = 'classification'
-            learning_rate = .001      # .1 for mean_squared_error      1e-4 for cross_entropy
+            learning_rate = .1      # .1 for mean_squared_error      1e-4 for cross_entropy
             net = Network(
                 training_inputs=train_set_coords, 
                 training_outputs=train_cls, 
