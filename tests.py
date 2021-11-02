@@ -62,6 +62,7 @@ for i, case in enumerate(all_cases_classyfication):
     if np.genfromtxt("out/continue_if_1.csv", delimiter=",", skip_header = 1) == 0:
         break
     cmd = 'mkdir -p experiments/data.' + case[2] + '.train.' + case[6] \
+        + '; cd experiments/data.' + case[2] + '.train.' + case[6] \
         + '; python ../../main.py' \
         + ' -a {}'.format(case[0]) \
         + ' -c {}'.format(case[1]) \
@@ -89,6 +90,7 @@ for i, case in enumerate(all_cases_regression):
     if np.genfromtxt("out/continue_if_1.csv", delimiter=",", skip_header = 1) == 0:
         break
     cmd = 'mkdir -p experiments/data.' + case[2] + '.train.' + case[6] \
+        + '; cd experiments/data.' + case[2] + '.train.' + case[6] \
         + '; python ../../main.py' \
         + ' -a {}'.format(case[0]) \
         + ' -c {}'.format(case[1]) \
@@ -101,7 +103,8 @@ for i, case in enumerate(all_cases_regression):
         + ' -r {}'.format(1) \
         + ' -s {}'.format(123) \
         + ' -S {}'.format(case[6]) \
-        + ' -q {}'.format(1)
+        + ' -q {}'.format(1) \
+        + '; cd -'
     print(cmd)
     p = subprocess.Popen(cmd, shell=True)
     processes.append(p)

@@ -75,7 +75,7 @@ def main():
     np.random.seed(args['seed'])
 
     try:
-        with open('../network_params.json') as f:
+        with open('../../network_params.json') as f:
             network_params = json.load(f)
     except:
         print("No network_paramss.json found")

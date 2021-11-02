@@ -13,7 +13,7 @@ def read_csv_file(method, file, problem, count):
     if file == 'mnist' and type == 'train':
         return np.genfromtxt('out/mnist_784.csv', delimiter=',', skip_header = 1, usecols = range(0,785))
     elif file != 'mnist':
-        return np.genfromtxt("../data/{}/data.{}.{}.{}.csv".format(method, file, problem, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
+        return np.genfromtxt("../../data/{}/data.{}.{}.{}.csv".format(method, file, problem, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
     return None
 
 def comp_confmat(actual, predicted):
