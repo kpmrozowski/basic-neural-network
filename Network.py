@@ -130,7 +130,7 @@ class Network:
         self.layers[0].dW = (1./m_batch) * np.matmul(dZ, X.T)
         self.layers[0].db = (1./m_batch) * np.sum(dZ, axis=1, keepdims=True)
     
-    def train(self, batch_size, train_verif_ratio, learning_rate, relaxation, timeout, iterations_initial=100, remote=0, huber_delta=1.):
+    def train(self, batch_size, train_verif_ratio, learning_rate, relaxation, timeout, iterations_initial=100, remote=0, file='', huber_delta=1.):
         statistics = {
             "epoch": [],
             "train_cost": [],
@@ -155,6 +155,8 @@ class Network:
         batches = -(-m // batch_size)
         epoch = 0
         iterations_left = iterations_initial
+        verif_cost_min = np.inf
+        timeout_no_improvement = time.time() + 5
         while True:
             permutation = np.random.permutation(m)
             X_train_shuffled = self.X_train[:, permutation]
@@ -174,23 +176,26 @@ class Network:
                     layer.weights -= learning_rate * layer.V_dW
                     layer.biases -= learning_rate * layer.V_db
             if self.cost_function == 'cross_entropy':
-                train_cost = self.cross_entropy_loss(self.X_train, self.Y_train)
-                verif_cost = self.cross_entropy_loss(self.X_verif, self.Y_verif)
+                train_cost, accuracy_train = self.cross_entropy_loss(self.X_train, self.Y_train)
+                verif_cost, accuracy_verif = self.cross_entropy_loss(self.X_verif, self.Y_verif)
             elif self.cost_function == 'pseudo_huber':
-                train_cost = self.pseudo_huber_loss(self.X_train, self.Y_train)
-                verif_cost = self.pseudo_huber_loss(self.X_verif, self.Y_verif)
+                train_cost, accuracy_train = self.pseudo_huber_loss(self.X_train, self.Y_train)
+                verif_cost, accuracy_verif = self.pseudo_huber_loss(self.X_verif, self.Y_verif)
             elif self.cost_function == 'mean_squared_error':
-                train_cost = self.mean_squared_error(self.X_train, self.Y_train)
-                verif_cost = self.mean_squared_error(self.X_verif, self.Y_verif)
-            E_train = self.distance_error(self.X_train, self.Y_train)
-            E_verif = self.distance_error(self.X_verif, self.Y_verif)
-            accuracy_train = 100 * np.divide( np.sum( E_train < .001 ), E_train.shape[1] )
-            accuracy_verif = 100 * np.divide( np.sum( E_verif < .001 ), E_verif.shape[1] )
+                train_cost, accuracy_train = self.mean_squared_error(self.X_train, self.Y_train)
+                verif_cost, accuracy_verif = self.mean_squared_error(self.X_verif, self.Y_verif)
             statistics["epoch"].append(epoch)
             statistics["train_cost"].append(train_cost)
             statistics["verif_cost"].append(verif_cost)
             statistics["accuracy_train"].append(accuracy_train)
             statistics["accuracy_verif"].append(accuracy_verif)
+            # stop cryterion:
+            if verif_cost < .99 * verif_cost_min:
+                verif_cost_min = verif_cost
+                timeout_no_improvement = time.time() + 10
+            if time.time() > timeout_no_improvement:
+                print('No improvement, break: ', end='')
+                break
             if epoch % 10 == 0 and remote == 0:
                 print("Epoch:{},trainCost={:.4f}‰,verifCost={:.4f}‰".format(epoch+1, 1000*train_cost, 1000*verif_cost))
             if iterations_left < 0:
@@ -271,8 +276,10 @@ class Network:
             + "-l." + str(learning_rate) \
             + "-n." + str(self.layers[0].neurons_count) \
             + "-p." + self.problem \
+            + "-F." + file \
+            + "-S." + str(self.X_raw.shape[0]) \
             + "-s." + str(success)
-        if True:
+        if False:
             results_test = np.zeros([self.X_verif.T.shape[0], 3])
             results_test[:,:2] = self.X_verif.T
             self.feed_forward(self.X_verif)
@@ -303,7 +310,7 @@ class Network:
                                          statistics["verif_cost"], 
                                          statistics["accuracy_train"], 
                                          statistics["accuracy_verif"]]).T
-            np.savetxt('results_statistics' + filename_header + '.csv', results_statistics, delimiter=",", header="epoch,train_cost,verif_cost,accuracy_train,accuracy_verif", comments='')
+            np.savetxt('experiment/statistics' + filename_header + '.csv', results_statistics, delimiter=",", header="epoch,train_cost,verif_cost,accuracy_train,accuracy_verif", comments='', fmt='%1.3e')
         if remote == 0:
             print("traininig done!")
 
@@ -317,10 +324,15 @@ class Network:
                 error += self.layers[-1].neurons[o].error(training_outputs[o])
         return error
 
-    def distance_error(self, X, Y_hat):
-        self.feed_forward(X)
-        Y = self.layers[-1].axons_outputs
-        return np.abs( Y - Y_hat )
+    def accuracy(self, Y_hat):
+        if self.problem == 'classification':
+            predictions = np.argmax(self.layers[-1].axons_outputs.T, axis=1)
+            labels = np.argmax(Y_hat, axis=0)
+            accuracy = np.mean(predictions == labels)
+        elif self.problem == 'regression':
+            E = np.abs( self.layers[-1].axons_outputs - Y_hat )
+            accuracy = np.divide( np.sum( E < .001 ), E.shape[1] )
+        return accuracy
 
     # Loss functions: https://ml-cheatsheet.readthedocs.io/en/latest/loss_functions.html
     # L(Ŷ,Y)= −(1/m) * ∑_{i=0}^{m}{ ŷᵢ * log(yᵢ) + (1−ŷᵢ) * log(1−yᵢ) }.
@@ -332,7 +344,9 @@ class Network:
         Y[Y == 1.0] = 1 - 1e-6
         a = np.multiply( np.log(Y), Y_hat)
         b = np.multiply( np.log(1-Y), 1-Y_hat)
-        return - (1./m) * ( np.sum( a ) + np.sum( b ) )
+        loss = - (1./m) * ( np.sum( a ) + np.sum( b ) )
+        acc = self.accuracy(Y_hat)
+        return loss, acc
 
     def huber_loss(self, X, Y_hat):
         self.feed_forward(X)
@@ -340,18 +354,24 @@ class Network:
         a = np.where(np.abs(Y-Y_hat) < self.huber_delta,
                      .5*(Y-Y_hat)**2 , 
                      self.huber_delta*(np.abs(Y-Y_hat)-0.5*self.huber_delta))
-        return np.divide( np.sum( a ), Y_hat.shape[1] )
+        loss = np.divide( np.sum( a ), Y_hat.shape[1] )
+        acc = self.accuracy(Y_hat)
+        return loss, acc
 
     # https://en.wikipedia.org/wiki/Huber_loss
     def pseudo_huber_loss(self, X, Y_hat):
         self.feed_forward(X)
         Y = self.layers[-1].axons_outputs
-        return np.divide( np.sum( np.square( self.huber_delta ) * ( np.sqrt( 1 + np.square( np.divide( Y - Y_hat, self.huber_delta ) ) ) - 1 ) ) , Y_hat.shape[1] )
+        loss = np.divide( np.sum( np.square( self.huber_delta ) * ( np.sqrt( 1 + np.square( np.divide( Y - Y_hat, self.huber_delta ) ) ) - 1 ) ) , Y_hat.shape[1] )
+        acc = self.accuracy(Y_hat)
+        return loss, acc
 
     def mean_squared_error(self, X, Y_hat):
         self.feed_forward(X)
         Y = self.layers[-1].axons_outputs
-        return np.divide( np.sum( np.sqrt( np.mean( np.square(Y - Y_hat) ) ) ) , Y_hat.shape[1] )
+        loss = np.divide( np.sum( np.sqrt( np.mean( np.square(Y - Y_hat) ) ) ) , Y_hat.shape[1] )
+        acc = self.accuracy(Y_hat)
+        return loss, acc
 
 class Layer:
     def __init__(self, neurons_count, biases, weights_mat, previous_layer = None, activation_function = 'sigmoid'):

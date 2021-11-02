@@ -2,5 +2,7 @@ out
 .vscode
 __pycache__
 *.csv
-experiments
+experiment
+experiments_old
 results
+file_name.csv
