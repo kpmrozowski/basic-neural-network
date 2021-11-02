@@ -128,9 +128,10 @@ def main():
         shuffle_index_test = np.random.permutation(test_file.shape[0])
         train_file = train_file[shuffle_index_train]
         test_file  = test_file[shuffle_index_test]
-        if True:
+        if False:
             plot_set(train_file)
             plot_set(test_file)
+            exit()
         train_set_coords = train_file[:,:-1]
         train_cls = train_file[:,-1].astype(int)
         test_set_coords = test_file[:,:-1]
@@ -164,7 +165,7 @@ def main():
             cost_function = 'cross_entropy'
             activation_function = 'relu'
             problem = 'classification'
-            learning_rate = 1e-4      # .1 for mean_squared_error      1e-4 for cross_entropy
+            learning_rate = 10      # .1 for mean_squared_error      1e-4 for cross_entropy
             net = Network(
                 training_inputs=train_set_coords, 
                 training_outputs=train_cls, 
