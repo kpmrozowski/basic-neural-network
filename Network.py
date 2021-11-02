@@ -416,6 +416,7 @@ class Layer:
         self.synaps_inputs_sums = np.matmul(self.weights, input_matrix) + self.biases
         sum = np.sum(np.exp(self.synaps_inputs_sums), axis=0)
         # sum[ np.abs(sum) < 1e-6 ] = 1e-6 * np.sign( sum[ np.abs(sum) < 1e-6 ] )
+        sum[ sum < 1e-6 ] = 1e-6
 
         self.axons_outputs = np.divide( np.exp(self.synaps_inputs_sums), sum )
         if np.sum( self.axons_outputs < 0 ) > 0:

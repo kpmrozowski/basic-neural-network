@@ -165,7 +165,7 @@ def main():
             cost_function = 'cross_entropy'
             activation_function = 'relu'
             problem = 'classification'
-            learning_rate = 10      # .1 for mean_squared_error      1e-4 for cross_entropy
+            learning_rate = .001      # .1 for mean_squared_error      1e-4 for cross_entropy
             net = Network(
                 training_inputs=train_set_coords, 
                 training_outputs=train_cls, 
@@ -186,7 +186,7 @@ def main():
         # net.print_myself()
         test_predictions = net.predict(test_set_coords)
         if args["remote"] == 0:
-            print(comp_confmat(test_predictions, test_cls - 1))
+            print(comp_confmat(test_cls - 1, test_predictions))
             print('accuracy(test) =', np.mean(test_predictions == test_cls - 1))
         
         plot_classification(test_file, test_predictions)
