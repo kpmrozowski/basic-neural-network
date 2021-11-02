@@ -16,6 +16,11 @@ def read_csv_file(method, file, problem, count):
         return np.genfromtxt("data/{}/data.{}.{}.{}.csv".format(method, file, problem, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
     return None
 
+def read_csv_file_test(method, file, problem, count):
+    if file != 'mnist':
+        return np.genfromtxt("data_test/{}/data.{}.{}.{}.csv".format(method, file, problem, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
+    return None
+
 def comp_confmat(actual, predicted):
 
     # extract the different classes
