@@ -16,6 +16,11 @@ def read_csv_file(method, file, problem, count):
         return np.genfromtxt("data/{}/data.{}.{}.{}.csv".format(method, file, problem, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
     return None
 
+def read_csv_file_test(method, file, problem, count):
+    if file != 'mnist':
+        return np.genfromtxt("data_test/{}/data.{}.{}.{}.csv".format(method, file, problem, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
+    return None
+
 def comp_confmat(actual, predicted):
 
     # extract the different classes
@@ -41,8 +46,8 @@ def plot_set(set):
     max_cls = np.max(cls)
     classes_count = max_cls - min_cls + 1
     
-    col = ['red','green','blue']
-    fig = pyplot.figure(figsize=(8,8))
+    col = ['red','green','blue','purple']
+    fig = pyplot.figure(figsize=(16,9))
     pyplot.scatter(set_coords[:,0], set_coords[:,1], c=cls, cmap=colors.ListedColormap(col[:classes_count]))
     cb = pyplot.colorbar()
     loc = np.arange(0,max(cls),max(cls)/float(classes_count))
@@ -58,8 +63,8 @@ def plot_classification(set, predictions):
     max_cls = np.max(cls)
     classes_count = max_cls - min_cls + 1
     
-    col = ['red','green','blue']
-    fig, (ax0, ax1) = pyplot.subplots(1,2, figsize=(8,8))
+    col = ['red','green','blue','purple']
+    fig, (ax0, ax1) = pyplot.subplots(1,2, figsize=(16,9))
     fig.suptitle('Final predictions!')
     l00 = ax0.scatter(set_coords[:,0], set_coords[:,1], marker="o",  s=.5, c=cls, cmap=colors.ListedColormap(col[:classes_count]))
     l10 = ax1.scatter(set_coords[:,0], set_coords[:,1], marker="o",  s=.5, c=predictions, cmap=colors.ListedColormap(col[:classes_count]))

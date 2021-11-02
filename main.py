@@ -5,7 +5,7 @@ import argparse
 from posix import XATTR_SIZE_MAX
 import numpy as np
 from matplotlib import pyplot, colors
-from utils import read_csv_file, comp_confmat, plot_set, plot_classification #, DrawNN
+from utils import read_csv_file, comp_confmat, plot_set, plot_classification, read_csv_file_test #, DrawNN
 import time
 
 
@@ -22,8 +22,9 @@ def main():
                         default='mean_squared_error', help='type of cost function')
 
     parser.add_argument('-F', '--file', dest='file', type=str, 
-                        choices=('simple', 'three_gauss', 'activation', 'cube', 'mnist'), 
-                        default="three_gauss", help='name of file')
+                        choices=('simple', 'three_gauss', 'circles', 'XOR', 'noisyXOR',
+                         'activation', 'cube', 'linear', 'multimodal', 'square', 'mnist'), 
+                        default="circles", help='name of file')
 
     parser.add_argument('-H', '--hidden-layers', dest='hidden_layers', type=int,
                         default=1, help='number of hidden layers')
@@ -91,8 +92,10 @@ def main():
 
     if args['remote'] == 0:
         print("Loading train and test files")
-    train_file = read_csv_file(args["problem"], args["file"], 'train', args["size"])
-    test_file = read_csv_file(args["problem"], args["file"], 'test', args["size"])
+    # train_file = read_csv_file(args["problem"], args["file"], 'train', args["size"])
+    # test_file = read_csv_file(args["problem"], args["file"], 'test', args["size"])
+    train_file = read_csv_file_test(args["problem"], args["file"], 'train', args["size"])
+    test_file = read_csv_file_test(args["problem"], args["file"], 'test', args["size"])
     shuffle_index = np.random.permutation(train_file.shape[0])
     train_file = train_file[shuffle_index]
 
@@ -128,6 +131,7 @@ def main():
         if False:
             plot_set(train_file)
             plot_set(test_file)
+            exit()
         train_set_coords = train_file[:,:-1]
         train_cls = train_file[:,-1].astype(int)
         test_set_coords = test_file[:,:-1]
@@ -158,10 +162,10 @@ def main():
                     net.add(args["neurons"])
                 net.add(classes_count)
         else:     
-            cost_function = 'cross_entropy'
+            cost_function = 'mean_squared_error'
             activation_function = 'relu'
             problem = 'classification'
-            learning_rate = 1e-4      # .1 for mean_squared_error      1e-4 for cross_entropy
+            learning_rate = .1      # .1 for mean_squared_error      1e-4 for cross_entropy
             net = Network(
                 training_inputs=train_set_coords, 
                 training_outputs=train_cls, 
@@ -182,7 +186,7 @@ def main():
         # net.print_myself()
         test_predictions = net.predict(test_set_coords)
         if args["remote"] == 0:
-            print(comp_confmat(test_predictions, test_cls - 1))
+            print(comp_confmat(test_cls - 1, test_predictions))
             print('accuracy(test) =', np.mean(test_predictions == test_cls - 1))
         
         plot_classification(test_file, test_predictions)
