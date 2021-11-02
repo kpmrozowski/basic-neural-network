@@ -5,7 +5,7 @@ import argparse
 from posix import XATTR_SIZE_MAX
 import numpy as np
 from matplotlib import pyplot, colors
-from utils import read_csv_file, comp_confmat, plot_set #, DrawNN
+from utils import read_csv_file, comp_confmat, plot_set, plot_classification #, DrawNN
 import time
 
 
@@ -23,7 +23,7 @@ def main():
 
     parser.add_argument('-F', '--file', dest='file', type=str, 
                         choices=('simple', 'three_gauss', 'activation', 'cube', 'mnist'), 
-                        default="cube", help='name of file')
+                        default="three_gauss", help='name of file')
 
     parser.add_argument('-H', '--hidden-layers', dest='hidden_layers', type=int,
                         default=1, help='number of hidden layers')
@@ -36,7 +36,7 @@ def main():
 
     parser.add_argument('-p', '--problem', dest='problem', type=str, 
                         choices=('classification', 'regression'),
-                        default='regression', help='type of algorithm')
+                        default='classification', help='type of algorithm')
 
     parser.add_argument('-P', '--process', dest='process', type=int,
                         default=0, help='process number')
@@ -75,7 +75,7 @@ def main():
     np.random.seed(args['seed'])
 
     try:
-        with open('../../../network_params.json') as f:
+        with open('network_params.json') as f:
             network_params = json.load(f)
     except:
         print("No network_paramss.json found")
@@ -161,7 +161,7 @@ def main():
             cost_function = 'cross_entropy'
             activation_function = 'relu'
             problem = 'classification'
-            learning_rate = .1      # .1 for mean_squared_error      1e-4 for cross_entropy
+            learning_rate = 1e-4      # .1 for mean_squared_error      1e-4 for cross_entropy
             net = Network(
                 training_inputs=train_set_coords, 
                 training_outputs=train_cls, 
@@ -180,10 +180,12 @@ def main():
         
         net.train(batch_size, train_verif_ratio, learning_rate, relaxation, timeout, iterations_initial, args['remote'])
         # net.print_myself()
+        test_predictions = net.predict(test_set_coords)
         if args["remote"] == 0:
-            test_predictions = net.predict(test_set_coords)
             print(comp_confmat(test_predictions, test_cls - 1))
             print('accuracy(test) =', np.mean(test_predictions == test_cls - 1))
+        
+        plot_classification(test_file, test_predictions)
 
     elif args["problem"] == "regression":
         train_set_coords = train_file[:,:-1][:,0]
@@ -280,7 +282,7 @@ def main():
             ax1.set(xlabel='x', ylabel='y')
             pyplot.legend((l00, l01), ('Y_train', 'predictions'), loc='upper right', shadow=True)
             pyplot.legend((l10, l11), ('Y_test', 'predictions'), loc='upper right', shadow=True)
-            pyplot.savefig('final-predictions.png')
+            pyplot.savefig('final-predictions.png', dpi=300)
             # pyplot.show()
     print('{}_finished'.format(args['process']))
     pass

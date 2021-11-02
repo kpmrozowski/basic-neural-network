@@ -230,7 +230,7 @@ class Network:
                     l11 = ax1.scatter(X_train, Y_train_pred, marker="o",  s=.5)
                     ax1.legend((l10, l11), ('Y_train', 'predictions'), loc='upper right', shadow=True)
                     # pyplot.show()
-                    pyplot.savefig('regression-predictions.png')
+                    pyplot.savefig('regression-predictions.png', dpi=300)
                 if remote == 0:
                     iterations_left_new = input("How many epochs do you want more?(default {}) Epochs: ".format(iterations_initial))
                     if iterations_left_new != '':

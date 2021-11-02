@@ -13,7 +13,7 @@ def read_csv_file(method, file, problem, count):
     if file == 'mnist' and type == 'train':
         return np.genfromtxt('out/mnist_784.csv', delimiter=',', skip_header = 1, usecols = range(0,785))
     elif file != 'mnist':
-        return np.genfromtxt("../../../data/{}/data.{}.{}.{}.csv".format(method, file, problem, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
+        return np.genfromtxt("data/{}/data.{}.{}.{}.csv".format(method, file, problem, count), delimiter=',', skip_header = 1) # usecols = range(0,3))
     return None
 
 def comp_confmat(actual, predicted):
@@ -49,3 +49,29 @@ def plot_set(set):
     cb.set_ticks(loc)
     cb.set_ticklabels(col[:classes_count])
     pyplot.show()
+
+def plot_classification(set, predictions):
+    set_coords = set[:,:-1]
+    cls = set[:,-1].astype(int)
+
+    min_cls = np.min(cls)
+    max_cls = np.max(cls)
+    classes_count = max_cls - min_cls + 1
+    
+    col = ['red','green','blue']
+    fig, (ax0, ax1) = pyplot.subplots(1,2, figsize=(8,8))
+    fig.suptitle('Final predictions!')
+    l00 = ax0.scatter(set_coords[:,0], set_coords[:,1], marker="o",  s=.5, c=cls, cmap=colors.ListedColormap(col[:classes_count]))
+    l10 = ax1.scatter(set_coords[:,0], set_coords[:,1], marker="o",  s=.5, c=predictions, cmap=colors.ListedColormap(col[:classes_count]))
+    ax0.set_title('Testining set')
+    ax1.set_title('predictions')
+    ax0.set(xlabel='x', ylabel='y')
+    ax1.set(xlabel='x', ylabel='y')
+    # pyplot.legend((l00), ('Y_train', 'predictions'), loc='upper right', shadow=True)
+    # pyplot.legend((l10), ('Y_test', 'predictions'), loc='upper right', shadow=True)
+    # cb = pyplot.colorbar()
+    # loc = np.arange(0,max(cls),max(cls)/float(classes_count))
+    # cb.set_ticks(loc)
+    # cb.set_ticklabels(col[:classes_count])
+    # pyplot.show()
+    pyplot.savefig('classification-predictions.png', dpi=300)
