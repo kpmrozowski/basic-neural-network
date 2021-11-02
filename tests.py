@@ -11,7 +11,7 @@ activation_functions = [ 'sigmoid', 'relu', 'tanh' ]
 classification_file_types = [ 'simple', 'three_gauss' ]
 regression_file_types = [ 'activation', 'cube' ]
 classification_cost_funcions = ['cross_entropy', 'mean_squared_error']
-regression_cost_funcions = ['pseudo_huber_loss', 'mean_squared_error']
+regression_cost_funcions = ['pseudo_huber', 'mean_squared_error']
 
 classyfication_all = [
     activation_functions,
@@ -38,6 +38,8 @@ regression_all = [
 all_cases_classyfication = list(itertools.product(*classyfication_all))
 all_cases_regression = list(itertools.product(*regression_all))
 
+print('len(all_cases_classyfication) =', len(all_cases_classyfication))
+print('len(all_cases_regression) =', len(all_cases_regression))
 
 import subprocess
 import time
@@ -54,48 +56,46 @@ import time
 # '-s', '--seed' const
 # '-S', '--size' [6]
 # '-q', '--quit' fixed
-import os
-os.system('cd out; ls; cd -')
 np.savetxt("out/continue_if_1.csv", np.array([1]), delimiter=",", header="CONTINUE_IF_1_BREAK_IF_0", comments='')
 processes = []
-for i, case in enumerate(all_cases_classyfication):
-    if np.genfromtxt("out/continue_if_1.csv", delimiter=",", skip_header = 1) == 0:
+# for i, case in enumerate(all_cases_classyfication):
+#     if np.genfromtxt("out/continue_if_1.csv", delimiter=",", skip_header = 1) != 1:
+#         break
+#     cmd = 'mkdir -p experiments/classification/data.' + case[2] + '.train.' + str(case[6]) \
+#         + '; cd experiments/classification/data.' + case[2] + '.train.' + str(case[6]) \
+#         + '; python ../../../main.py' \
+#         + ' -a {}'.format(case[0]) \
+#         + ' -c {}'.format(case[1]) \
+#         + ' -F {}'.format(case[2]) \
+#         + ' -H {}'.format(case[3]) \
+#         + ' -l {}'.format(case[4]) \
+#         + ' -n {}'.format(case[5]) \
+#         + ' -p {}'.format('classification') \
+#         + ' -P {}'.format(i) \
+#         + ' -r {}'.format(1) \
+#         + ' -s {}'.format(123) \
+#         + ' -S {}'.format(case[6]) \
+#         + ' -q {}'.format(0) \
+#         + '; cd -'
+#     print(cmd)
+#     p = subprocess.Popen(cmd, shell=True)
+#     processes.append(p)
+#     time.sleep(10)
+#     # out, err = p.communicate() 
+#     # result = out.split('\n')
+#     # for lin in result:
+#     #     if not lin.startswith('#'):
+#     #         print('lin =', lin)
+for i, case in enumerate(all_cases_regression):
+    if np.genfromtxt("out/continue_if_1.csv", delimiter=",", skip_header = 1) != 1:
         break
-    cmd = 'mkdir -p experiments/data.' + case[2] + '.train.' + case[6] \
-        + '; cd experiments/data.' + case[2] + '.train.' + case[6] \
-        + '; python ../../main.py' \
+    cmd = 'mkdir -p experiments/regression/data.' + case[2] + '.train.' + str(case[6]) \
+        + '; cd experiments/regression/data.' + case[2] + '.train.' + str(case[6]) \
+        + '; python ../../../main.py' \
         + ' -a {}'.format(case[0]) \
         + ' -c {}'.format(case[1]) \
         + ' -F {}'.format(case[2]) \
         + ' -H {}'.format(case[3]) \
-        + ' -l {}'.format(case[4]) \
-        + ' -n {}'.format(case[5]) \
-        + ' -p {}'.format('classification') \
-        + ' -P {}'.format(i) \
-        + ' -r {}'.format(1) \
-        + ' -s {}'.format(123) \
-        + ' -S {}'.format(case[6]) \
-        + ' -q {}'.format(1) \
-        + '; cd -'
-    print(cmd)
-    p = subprocess.Popen(cmd, shell=True)
-    processes.append(p)
-    time.sleep(10)
-    # out, err = p.communicate() 
-    # result = out.split('\n')
-    # for lin in result:
-    #     if not lin.startswith('#'):
-    #         print('lin =', lin)
-for i, case in enumerate(all_cases_regression):
-    if np.genfromtxt("out/continue_if_1.csv", delimiter=",", skip_header = 1) == 0:
-        break
-    cmd = 'mkdir -p experiments/data.' + case[2] + '.train.' + case[6] \
-        + '; cd experiments/data.' + case[2] + '.train.' + case[6] \
-        + '; python ../../main.py' \
-        + ' -a {}'.format(case[0]) \
-        + ' -c {}'.format(case[1]) \
-        + ' -F {}'.format(case[2]) \
-        + ' -h {}'.format(case[3]) \
         + ' -l {}'.format(case[4]) \
         + ' -n {}'.format(case[5]) \
         + ' -p {}'.format('regression') \
@@ -103,12 +103,10 @@ for i, case in enumerate(all_cases_regression):
         + ' -r {}'.format(1) \
         + ' -s {}'.format(123) \
         + ' -S {}'.format(case[6]) \
-        + ' -q {}'.format(1) \
+        + ' -q {}'.format(0) \
         + '; cd -'
     print(cmd)
     p = subprocess.Popen(cmd, shell=True)
     processes.append(p)
     time.sleep(10)
-print('len(all_cases_classyfication) =', len(all_cases_classyfication))
-print('len(all_cases_regression) =', len(all_cases_regression))
-print('processes started!')
+print('processes finished!')

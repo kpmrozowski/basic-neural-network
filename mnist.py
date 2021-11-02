@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 
 from utils import comp_confmat
-from sklearn.metrics import classification_report
+# from sklearn.metrics import classification_report
 
 class Networkm:
     def __init__(self, training_inputs=None, training_outputs=None, activation_function='sigmoid', problem='classification'):

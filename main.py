@@ -75,7 +75,7 @@ def main():
     np.random.seed(args['seed'])
 
     try:
-        with open('../../network_params.json') as f:
+        with open('../../../network_params.json') as f:
             network_params = json.load(f)
     except:
         print("No network_paramss.json found")
@@ -280,7 +280,8 @@ def main():
             ax1.set(xlabel='x', ylabel='y')
             pyplot.legend((l00, l01), ('Y_train', 'predictions'), loc='upper right', shadow=True)
             pyplot.legend((l10, l11), ('Y_test', 'predictions'), loc='upper right', shadow=True)
-            pyplot.show()
+            pyplot.savefig('final-predictions.png')
+            # pyplot.show()
     print('{}_finished'.format(args['process']))
     pass
 
