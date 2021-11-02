@@ -1,9 +1,8 @@
 import json
 import argparse
-from posix import XATTR_SIZE_MAX
 import numpy as np
 
-from utils import read_csv_file, comp_confmat
+from utils import comp_confmat
 from sklearn.metrics import classification_report
 
 class Networkm:
