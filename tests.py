@@ -15,8 +15,8 @@ from time import sleep
 import numpy as np
 import pandas as pd
 
-def foo(i, args):
-    return [i/7., args['process']**2/7.]
+def foo(args):
+    return [args['process']/7., args['process']**2/7.]
 
 if __name__ == '__main__':
 
@@ -77,9 +77,9 @@ if __name__ == '__main__':
     
 
     # threaded version
-    pool_classification = ThreadPool(8)
-    results = []
-    data_list = []
+    pool_classification = ThreadPool(10)
+    results_classification = []
+    data_list_classification = []
     for i, case in enumerate(all_cases_classification):
         args = {
             "activation": case[0],
@@ -107,12 +107,24 @@ if __name__ == '__main__':
             "accuracy_train": 0,
             "accuracy_test": 0
         }
-        results.append( pool_classification.apply_async(experiment, args=(args,)) )
-        data_list.append(params)
+        results_classification.append( pool_classification.apply_async(experiment, args=(args,)) )
+        data_list_classification.append(params)
     pool_classification.close()
     pool_classification.join()
     
-    pool_regression = ThreadPool(8)
+
+    results_classification = [ r.get() for r in results_classification ]
+    for i, data_row in enumerate(data_list_classification):
+        data_row["accuracy_train"] = results_classification[i][0]
+        data_row["accuracy_test"] = results_classification[i][1]
+        pass
+    df_classification = pd.DataFrame(data_list_classification)
+    print(df_classification.head())
+    df_classification.to_csv('results_classification.csv', float_format='%.2E')
+
+    pool_regression = ThreadPool(10)
+    results_regression = []
+    data_list_regression = []
     for i, case in enumerate(all_cases_regression):
         args = {
             "activation": case[0],
@@ -140,20 +152,20 @@ if __name__ == '__main__':
             "accuracy_train": 0,
             "accuracy_test": 0
         }
-        results.append( pool_regression.apply_async(experiment, args=(args,)) )
-        data_list.append(params)
+        results_regression.append( pool_regression.apply_async(experiment, args=(args,)) )
+        data_list_regression.append(params)
 
     pool_regression.close()
     pool_regression.join()
-    results = [ r.get() for r in results ]
+    results_regression = [ r.get() for r in results_regression ]
     # print('results: ', results)
-    for i, data_row in enumerate(data_list):
-        data_row["accuracy_train"] = results[i][0]
-        data_row["accuracy_test"] = results[i][1]
+    for i, data_row in enumerate(data_list_regression):
+        data_row["accuracy_train"] = results_regression[i][0]
+        data_row["accuracy_test"] = results_regression[i][1]
         pass
-    df = pd.DataFrame(data_list)
-    print(df.head())
-    df.to_csv('/mnt/foo.csv', float_format='%.2E')
+    df_regression = pd.DataFrame(data_list_regression)
+    print(df_regression.head())
+    df_regression.to_csv('results_regression.csv', float_format='%.2E')
     
 
 

@@ -190,7 +190,7 @@ class Network:
             statistics["accuracy_train"].append(accuracy_train)
             statistics["accuracy_verif"].append(accuracy_verif)
             # stop cryterion:
-            if verif_cost < .99 * verif_cost_min:
+            if verif_cost < .98 * verif_cost_min:
                 verif_cost_min = verif_cost
                 timeout_no_improvement = time.time() + 10
             if time.time() > timeout_no_improvement:
@@ -210,9 +210,9 @@ class Network:
                     self.feed_forward(self.X_verif)
                     Y = self.layers[-1].axons_outputs
                     E = np.abs( Y - self.Y_verif )
-                    mse_verif = self.mean_squared_error(self.X_train, self.Y_train)
+                    mse_verif, accuracy_verif = self.mean_squared_error(self.X_train, self.Y_train)
                     print('Mean Squared Error(verif)={:.2f}‰'.format(1000*mse_verif))
-                    print("Accuracy (|Y-Yhat|<{}): {:.2f}%". format(.001, 100 * np.divide( np.sum( E < .001 ), Y.shape[1] ) ) )
+                    print("Accuracy (|Y-Yhat|<{}): {:.2f}%". format(.001, 100 * accuracy_verif ) )
                     ax0.set_title('Veryficating set, MSE={:.2f}‰'.format(1000*mse_verif))
                     X_verif = self.bounds_raw[0] + np.multiply( self.X_verif, self.bounds_raw[1] - self.bounds_raw[0] )
                     Y_verif = self.bounds_raw[2] + np.multiply( self.Y_verif, self.bounds_raw[3] - self.bounds_raw[2] )
@@ -223,9 +223,9 @@ class Network:
                     self.feed_forward(self.X_train)
                     Y = self.layers[-1].axons_outputs
                     E = np.abs( Y - self.Y_train )
-                    mse_train = self.mean_squared_error(self.X_verif, self.Y_verif)
+                    mse_train, accuracy_train = self.mean_squared_error(self.X_verif, self.Y_verif)
                     print('Mean Squared Error(train)={:.2f}‰'.format(1000*mse_train))
-                    print("Accuracy (|Y-Yhat|<{}): {:.2f}%". format(.001, 100 * np.divide( np.sum( E < .001 ), Y.shape[1] ) ) )
+                    print("Accuracy (|Y-Yhat|<{}): {:.2f}%". format(.001, 100 * accuracy_train ) )
                     ax1.set_title('Training set, MSE={:.2f}‰'.format(1000*mse_train))
                     ax1.set(xlabel='x', ylabel='y')
                     X_train = self.bounds_raw[0] + np.multiply( self.X_train, self.bounds_raw[1] - self.bounds_raw[0] )

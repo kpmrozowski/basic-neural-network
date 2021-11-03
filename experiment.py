@@ -222,19 +222,17 @@ def experiment(args):
         Y_test = np.array([Y])
         predictions_train = net.predict(train_set_coords)
         predictions_test = net.predict(test_set_coords)
-        Y = np.divide( predictions_train - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
-        predictions_train_norm = np.array([Y])
-        Y = np.divide( predictions_test - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
-        predictions_test_norm = np.array([Y])
+        predictions_train_norm = np.divide( predictions_train - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
+        predictions_test_norm = np.divide( predictions_test - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
         if args["cost"] == 'cross_entropy':
-            train_loss = net.cross_entropy_loss(X_train, Y_train)
-            test_loss = net.cross_entropy_loss(X_test, Y_test)
+            train_loss, accuracy_train = net.cross_entropy_loss(X_train, Y_train)
+            test_loss , accuracy_test = net.cross_entropy_loss(X_test, Y_test)
         elif args["cost"] == 'pseudo_huber':
-            train_loss = net.pseudo_huber_loss(X_train, Y_train)
-            test_loss = net.pseudo_huber_loss(X_test, Y_test)
+            train_loss, accuracy_train = net.pseudo_huber_loss(X_train, Y_train)
+            test_loss , accuracy_test = net.pseudo_huber_loss(X_test, Y_test)
         elif args["cost"] == 'mean_squared_error':
-            train_loss = net.mean_squared_error(X_train, Y_train)
-            test_loss = net.mean_squared_error(X_test, Y_test)
+            train_loss, accuracy_train = net.mean_squared_error(X_train, Y_train)
+            test_loss , accuracy_test = net.mean_squared_error(X_test, Y_test)
         if args["remote"] == 0:
             fig, (ax0, ax1) = pyplot.subplots(1,2)
             fig.suptitle('Final predictions!')
@@ -242,8 +240,8 @@ def experiment(args):
             l01 = ax0.scatter(train_set_coords, train_set_value, marker="o",  s=.5)
             l10 = ax1.scatter(test_set_coords, predictions_test, marker="o",  s=.5)
             l11 = ax1.scatter(test_set_coords, test_set_value, marker="o",  s=.5)
-            ax0.set_title('Testining set, LOSS={:.4f}‰'.format(1000*train_loss))
-            ax1.set_title('Testining set, LOSS={:.4f}‰'.format(1000*test_loss))
+            ax0.set_title('Testining set, LOSS={:.4f}‰, ACC={:.4f}%'.format(1000*train_loss, 100*accuracy_train))
+            ax1.set_title('Testining set, LOSS={:.4f}‰, ACC={:.4f}%'.format(1000*test_loss, 100*accuracy_test))
             ax0.set(xlabel='x', ylabel='y')
             ax1.set(xlabel='x', ylabel='y')
             pyplot.legend((l00, l01), ('Y_train', 'predictions'), loc='upper right', shadow=True)
@@ -251,8 +249,8 @@ def experiment(args):
             pyplot.savefig('final-predictions.png', dpi=300)
             # pyplot.show()
         
-        E_train = np.abs( predictions_train_norm - Y_train )
-        E_test = np.abs( predictions_test_norm - Y_test )
+        E_train = np.abs( predictions_train_norm[0] - Y_train[0] )
+        E_test = np.abs( predictions_test_norm[0] - Y_test[0] )
         train_accuracy = np.divide( np.sum( E_train < .001 ), len(E_train) )
         test_accuracy = np.divide( np.sum( E_test < .001 ), len(E_test) )
         
@@ -261,3 +259,4 @@ def experiment(args):
 
     
 
+# if __name__ == '__main__':

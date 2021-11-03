@@ -24,7 +24,7 @@ def main():
     parser.add_argument('-F', '--file', dest='file', type=str, 
                         choices=('simple', 'three_gauss', 'circles', 'XOR', 'noisyXOR',
                          'activation', 'cube', 'linear', 'multimodal', 'square', 'mnist'), 
-                        default="circles", help='name of file')
+                        default="activation", help='name of file')
 
     parser.add_argument('-H', '--hidden-layers', dest='hidden_layers', type=int,
                         default=1, help='number of hidden layers')
@@ -37,7 +37,7 @@ def main():
 
     parser.add_argument('-p', '--problem', dest='problem', type=str, 
                         choices=('classification', 'regression'),
-                        default='classification', help='type of algorithm')
+                        default='regression', help='type of algorithm')
 
     parser.add_argument('-P', '--process', dest='process', type=int,
                         default=0, help='process number')
@@ -92,10 +92,10 @@ def main():
 
     if args['remote'] == 0:
         print("Loading train and test files")
-    # train_file = read_csv_file(args["problem"], args["file"], 'train', args["size"])
-    # test_file = read_csv_file(args["problem"], args["file"], 'test', args["size"])
-    train_file = read_csv_file_test(args["problem"], args["file"], 'train', args["size"])
-    test_file = read_csv_file_test(args["problem"], args["file"], 'test', args["size"])
+    train_file = read_csv_file(args["problem"], args["file"], 'train', args["size"])
+    test_file = read_csv_file(args["problem"], args["file"], 'test', args["size"])
+    # train_file = read_csv_file_test(args["problem"], args["file"], 'train', args["size"])
+    # test_file = read_csv_file_test(args["problem"], args["file"], 'test', args["size"])
     shuffle_index = np.random.permutation(train_file.shape[0])
     train_file = train_file[shuffle_index]
 
@@ -252,43 +252,51 @@ def main():
         #     "accuracy_verif": [] }
         #  + train_predictions + verif_predictions + test_predictions + decision_surface
         
-        net.train(batch_size, train_verif_ratio, learning_rate, relaxation, timeout, iterations_initial, args['remote'], huber_delta)
+        net.train(batch_size, train_verif_ratio, learning_rate, relaxation, timeout, iterations_initial, args['remote'], args["file"], huber_delta)
         # net.print_myself()
+        X = np.divide( train_set_coords - net.bounds_raw[0], net.bounds_raw[1] - net.bounds_raw[0] )
+        Y = np.divide( train_set_value - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
+        X_train = np.array([X])
+        Y_train = np.array([Y])
+        X = np.divide( test_set_coords - net.bounds_raw[0], net.bounds_raw[1] - net.bounds_raw[0] )
+        Y = np.divide( test_set_value - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
+        X_test = np.array([X])
+        Y_test = np.array([Y])
+        predictions_train = net.predict(train_set_coords)
+        predictions_test = net.predict(test_set_coords)
+        predictions_train_norm = np.divide( predictions_train - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
+        predictions_test_norm = np.divide( predictions_test - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
+        if args["cost"] == 'cross_entropy':
+            train_loss, accuracy_train = net.cross_entropy_loss(X_train, Y_train)
+            test_loss , accuracy_test = net.cross_entropy_loss(X_test, Y_test)
+        elif args["cost"] == 'pseudo_huber':
+            train_loss, accuracy_train = net.pseudo_huber_loss(X_train, Y_train)
+            test_loss , accuracy_test = net.pseudo_huber_loss(X_test, Y_test)
+        elif args["cost"] == 'mean_squared_error':
+            train_loss, accuracy_train = net.mean_squared_error(X_train, Y_train)
+            test_loss , accuracy_test = net.mean_squared_error(X_test, Y_test)
         if args["remote"] == 0:
-            X = np.divide( train_set_coords - net.bounds_raw[0], net.bounds_raw[1] - net.bounds_raw[0] )
-            Y = np.divide( train_set_value - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
-            X_train = np.array([X])
-            Y_train = np.array([Y])
-            X = np.divide( test_set_coords - net.bounds_raw[0], net.bounds_raw[1] - net.bounds_raw[0] )
-            Y = np.divide( test_set_value - net.bounds_raw[2], net.bounds_raw[3] - net.bounds_raw[2] )
-            X_test = np.array([X])
-            Y_test = np.array([Y])
-            if args["cost"] == 'cross_entropy':
-                train_loss = net.cross_entropy_loss(X_train, Y_train)
-                test_loss = net.cross_entropy_loss(X_test, Y_test)
-            elif args["cost"] == 'pseudo_huber':
-                train_loss = net.pseudo_huber_loss(X_train, Y_train)
-                test_loss = net.pseudo_huber_loss(X_test, Y_test)
-            elif args["cost"] == 'mean_squared_error':
-                train_loss = net.mean_squared_error(X_train, Y_train)
-                test_loss = net.mean_squared_error(X_test, Y_test)
-            train_predictions = net.predict(train_set_coords)
-            test_predictions = net.predict(test_set_coords)
             fig, (ax0, ax1) = pyplot.subplots(1,2)
             fig.suptitle('Final predictions!')
-            l00 = ax0.scatter(train_set_coords, train_predictions, marker="o",  s=.5)
+            l00 = ax0.scatter(train_set_coords, predictions_train, marker="o",  s=.5)
             l01 = ax0.scatter(train_set_coords, train_set_value, marker="o",  s=.5)
-            l10 = ax1.scatter(test_set_coords, test_predictions, marker="o",  s=.5)
+            l10 = ax1.scatter(test_set_coords, predictions_test, marker="o",  s=.5)
             l11 = ax1.scatter(test_set_coords, test_set_value, marker="o",  s=.5)
-            ax0.set_title('Testining set, LOSS={:.4f}‰'.format(1000*train_loss))
-            ax1.set_title('Testining set, LOSS={:.4f}‰'.format(1000*test_loss))
+            ax0.set_title('Testining set, LOSS={:.4f}‰, ACC={:.4f}%'.format(1000*train_loss, 100*accuracy_train))
+            ax1.set_title('Testining set, LOSS={:.4f}‰, ACC={:.4f}%'.format(1000*test_loss, 100*accuracy_test))
             ax0.set(xlabel='x', ylabel='y')
             ax1.set(xlabel='x', ylabel='y')
             pyplot.legend((l00, l01), ('Y_train', 'predictions'), loc='upper right', shadow=True)
             pyplot.legend((l10, l11), ('Y_test', 'predictions'), loc='upper right', shadow=True)
             pyplot.savefig('final-predictions.png', dpi=300)
             # pyplot.show()
-    print('{}_finished'.format(args['process']))
+        
+        E_train = np.abs( predictions_train_norm[0] - Y_train[0] )
+        E_test = np.abs( predictions_test_norm[0] - Y_test[0] )
+        train_accuracy = np.divide( np.sum( E_train < .001 ), len(E_train) )
+        test_accuracy = np.divide( np.sum( E_test < .001 ), len(E_test) )
+        
+    print( '{}_finished: train_accuracy={},  test_accuracy={}'.format( args['process'], train_accuracy, test_accuracy ) )
     pass
 
     
